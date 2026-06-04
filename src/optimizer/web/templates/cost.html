@@ -1,0 +1,50 @@
+{% extends "_base.html" %}
+{% block title %}Cost · wyzegrid-optimizer{% endblock %}
+{% block content %}
+<h1>Token usage + cost</h1>
+
+{% set hist = data.history %}
+{% if hist %}
+{% set total_cost = hist|sum(attribute='claude_cost_usd', start=0.0) %}
+{% set total_in   = hist|sum(attribute='claude_input_tokens', start=0) %}
+{% set total_out  = hist|sum(attribute='claude_output_tokens', start=0) %}
+<section class="cards">
+  <div class="card">
+    <div class="card-label">Runs shown</div>
+    <div class="card-value">{{ hist|length }}</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Total input tokens</div>
+    <div class="card-value">{{ total_in }}</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Total output tokens</div>
+    <div class="card-value">{{ total_out }}</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Total cost (USD)</div>
+    <div class="card-value">${{ "%.4f"|format(total_cost) }}</div>
+  </div>
+</section>
+
+<table>
+  <thead><tr><th>Run</th><th>Started</th><th>Status</th><th>Claude used?</th><th>Input tok</th><th>Output tok</th><th>Cost USD</th><th>Notes</th></tr></thead>
+  <tbody>
+  {% for h in hist %}
+    <tr>
+      <td>{{ h.id }}</td>
+      <td>{{ h.started_at|int }}</td>
+      <td>{{ h.status }}</td>
+      <td>{{ "yes" if h.claude_used else "no" }}</td>
+      <td>{{ h.claude_input_tokens or 0 }}</td>
+      <td>{{ h.claude_output_tokens or 0 }}</td>
+      <td>${{ "%.4f"|format(h.claude_cost_usd or 0) }}</td>
+      <td>{{ h.notes or "—" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No run history yet.</p>
+{% endif %}
+{% endblock %}

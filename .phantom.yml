@@ -1,0 +1,52 @@
+# Phantom demo mode contract for wyzegrid-optimizer.
+#
+# PHANTOM_MODE=1 boots the dashboard with synthetic data — no Frigate connection,
+# no Anthropic API key, no .env required. This is the proof-of-no-hard-secrets
+# for a UI project per Will's standards.
+#
+# Run locally:
+#   PHANTOM_MODE=1 python -m optimizer.web.dashboard
+# Then visit http://localhost:5004
+#
+# CI runs this with `pytest tests/test_phantom.py` plus the smoke boot.
+
+name: wyzegrid-optimizer
+type: ui-service
+demo_mode:
+  env_var: PHANTOM_MODE
+  on_value: "1"
+
+# What the demo boots with — described, not generated here.
+synthetic_data:
+  cameras:
+    - id: phantom_front_yard
+      label: Front Yard (demo)
+    - id: phantom_front_porch
+      label: Front Porch (demo)
+    - id: phantom_back_yard
+      label: Back Yard (demo)
+    - id: phantom_back_deck
+      label: Back Deck (demo)
+  events_per_camera: 200
+  labels: [person, car, dog, cat]
+  time_window_days: 7
+
+screenshots:
+  # What CI captures when proving Phantom works.
+  - id: dashboard-home
+    path: /
+    description: Index — per-camera trends + recommendations summary
+  - id: dashboard-recommendations
+    path: /recommendations
+    description: Recommendations queue (read-only in Phase 1)
+  - id: dashboard-trends
+    path: /trends
+    description: Score distribution + label frequency trends
+  - id: dashboard-cost
+    path: /cost
+    description: Token usage + cost tracker
+
+ci:
+  # CI workflow that exercises phantom mode end-to-end without secrets.
+  workflow: .github/workflows/phantom.yml
+  expects_no_env_file: true

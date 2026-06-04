@@ -1,0 +1,41 @@
+{% extends "_base.html" %}
+{% block title %}Recommendations · wyzegrid-optimizer{% endblock %}
+{% block content %}
+<h1>Recommendations queue</h1>
+<p class="note">Phase 1: nothing is applied. Review and accept / reject manually by editing Frigate config yourself.</p>
+
+{% if data.recommendations %}
+<table class="recs">
+  <thead>
+    <tr>
+      <th>Risk</th>
+      <th>Camera</th>
+      <th>Label</th>
+      <th>Param</th>
+      <th>Current</th>
+      <th>Proposed</th>
+      <th>Confidence</th>
+      <th>Rationale</th>
+      <th>Expected effect</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in data.recommendations %}
+    <tr class="risk-{{ r.risk_class }}">
+      <td><span class="risk-badge risk-{{ r.risk_class }}">{{ r.risk_class }}</span></td>
+      <td>{{ r.camera or "—" }}</td>
+      <td>{{ r.label or "—" }}</td>
+      <td><code>{{ r.param or "—" }}</code></td>
+      <td>{{ r.current_value if r.current_value is not none else "—" }}</td>
+      <td>{{ r.proposed_value if r.proposed_value is not none else "—" }}</td>
+      <td>{{ "%.0f"|format((r.confidence or 0) * 100) }}%</td>
+      <td>{{ r.rationale }}</td>
+      <td>{{ r.expected_effect }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No recommendations in the latest run.</p>
+{% endif %}
+{% endblock %}

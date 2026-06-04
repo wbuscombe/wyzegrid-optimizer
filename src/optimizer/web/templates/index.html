@@ -1,0 +1,80 @@
+{% extends "_base.html" %}
+{% block title %}Overview · wyzegrid-optimizer{% endblock %}
+{% block content %}
+<h1>Latest analysis run</h1>
+
+{% if data.run %}
+<section class="cards">
+  <div class="card">
+    <div class="card-label">Status</div>
+    <div class="card-value">{{ data.run.status }}</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Recommendations</div>
+    <div class="card-value">{{ data.recommendations|length }}</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Claude used?</div>
+    <div class="card-value">{{ "yes" if data.run.claude_used else "no (rule-layer)" }}</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Cost (USD)</div>
+    <div class="card-value">${{ "%.4f"|format(data.run.claude_cost_usd or 0) }}</div>
+  </div>
+</section>
+
+<section>
+  <h2>Per-camera profile</h2>
+  <table>
+    <thead><tr><th>Camera</th><th>Total events</th><th>Tracked labels</th><th>Never-seen labels (window)</th></tr></thead>
+    <tbody>
+    {% for p in data.findings.per_camera_profile.profiles %}
+      <tr>
+        <td>{{ p.camera }}</td>
+        <td>{{ p.total_events }}</td>
+        <td>{{ p.tracked_labels|join(", ") }}</td>
+        <td class="{{ 'never-seen' if p.never_seen_labels else '' }}">
+          {{ p.never_seen_labels|join(", ") or "—" }}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Asymmetries (per-camera label gaps)</h2>
+  {% if data.findings.per_camera_profile.asymmetries %}
+    <ul>
+    {% for a in data.findings.per_camera_profile.asymmetries %}
+      <li>
+        <strong>{{ a.camera }}</strong>:
+        zero <code>{{ a.label }}</code> events while other cameras produced
+        {{ a.events_on_other_cameras }}. <em>{{ a.evidence }}</em>
+      </li>
+    {% endfor %}
+    </ul>
+  {% else %}
+    <p>None — every tracked label has at least some detections on every camera.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Model-limit candidates</h2>
+  {% if data.findings.model_limit.candidates %}
+    <ul>
+    {% for c in data.findings.model_limit.candidates %}
+      <li>
+        <strong>{{ c.camera }} / {{ c.label }}</strong>: 0 detections of this label
+        out of {{ c.camera_total_events }} total. <em>{{ c.evidence }}</em>
+      </li>
+    {% endfor %}
+    </ul>
+  {% else %}
+    <p>None.</p>
+  {% endif %}
+</section>
+{% else %}
+<p>No analysis run yet. Trigger one with <code>python -m optimizer.run_once</code>.</p>
+{% endif %}
+{% endblock %}

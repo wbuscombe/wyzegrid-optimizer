@@ -1,0 +1,40 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Editor / tool state
+.claude/
+.idea/
+.vscode/
+*.swp
+
+# Local databases — runtime state, not source
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+data/
+
+# OS noise
+.DS_Store
+
+# Dropbox conflict artifacts
+*selective sync conflict*
+*conflicted copy *
+
+# Local-only ops
+docker/*.local.yml

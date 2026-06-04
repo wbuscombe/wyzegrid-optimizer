@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}wyzegrid-optimizer{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <strong>wyzegrid-optimizer</strong>
+  <span class="phase-tag">Phase 1 · read-only</span>
+  {% if phantom %}<span class="phantom-tag">PHANTOM</span>{% endif %}
+  <nav>
+    <a href="{{ url_for('index') }}">Home</a>
+    <a href="{{ url_for('recommendations_view') }}">Recommendations</a>
+    <a href="{{ url_for('trends_view') }}">Trends</a>
+    <a href="{{ url_for('cost_view') }}">Cost</a>
+  </nav>
+</header>
+<main>
+  {% block content %}{% endblock %}
+</main>
+<footer>
+  <small>
+    Read-only Phase 1. Recommendations are surfaced for human review — nothing is applied.
+  </small>
+</footer>
+</body>
+</html>

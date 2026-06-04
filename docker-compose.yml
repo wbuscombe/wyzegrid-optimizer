@@ -1,0 +1,54 @@
+services:
+  # Long-running scheduler — runs the ingest+analyze cycle on cfg interval
+  optimizer-scheduler:
+    build: .
+    image: wyzegrid-optimizer:latest
+    container_name: wyzegrid-optimizer-scheduler
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PHANTOM_MODE=0
+    command: ["python", "-m", "optimizer.scheduler"]
+    volumes:
+      - optimizer-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; assert os.path.exists('/data')"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Read-only dashboard
+  optimizer-dashboard:
+    build: .
+    image: wyzegrid-optimizer:latest
+    container_name: wyzegrid-optimizer-dashboard
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PHANTOM_MODE=0
+    ports:
+      - "5004:5004"
+    volumes:
+      - optimizer-data:/data
+    depends_on:
+      - optimizer-scheduler
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5004/api/health', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  optimizer-data:

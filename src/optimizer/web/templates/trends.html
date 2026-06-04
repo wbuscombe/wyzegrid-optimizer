@@ -1,0 +1,75 @@
+{% extends "_base.html" %}
+{% block title %}Trends · wyzegrid-optimizer{% endblock %}
+{% block content %}
+<h1>Score distributions (latest window)</h1>
+
+{% set dists = data.findings.score_distribution.distributions %}
+{% if dists %}
+<table>
+  <thead>
+    <tr><th>Camera</th><th>Label</th><th>Count</th><th>Min</th><th>P10</th><th>P25</th><th>Median</th><th>Mean</th><th>P75</th><th>P90</th><th>Max</th><th>Current threshold</th></tr>
+  </thead>
+  <tbody>
+  {% for d in dists %}
+    <tr>
+      <td>{{ d.camera }}</td>
+      <td>{{ d.label }}</td>
+      <td>{{ d.count }}</td>
+      <td>{{ "%.2f"|format(d.min) }}</td>
+      <td>{{ "%.2f"|format(d.p10) }}</td>
+      <td>{{ "%.2f"|format(d.p25) }}</td>
+      <td>{{ "%.2f"|format(d.median) }}</td>
+      <td>{{ "%.2f"|format(d.mean) }}</td>
+      <td>{{ "%.2f"|format(d.p75) }}</td>
+      <td>{{ "%.2f"|format(d.p90) }}</td>
+      <td>{{ "%.2f"|format(d.max) }}</td>
+      <td>{{ d.current_threshold if d.current_threshold is not none else "—" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Score-band chart</h2>
+<canvas id="scoreChart" height="120"></canvas>
+<script>
+  const dists = {{ dists|tojson }};
+  const labels = dists.map(d => `${d.camera}/${d.label}`);
+  new Chart(document.getElementById("scoreChart"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: "P10", data: dists.map(d => d.p10), backgroundColor: "#a3a3a3" },
+        { label: "Median", data: dists.map(d => d.median), backgroundColor: "#3b82f6" },
+        { label: "P90", data: dists.map(d => d.p90), backgroundColor: "#0ea5e9" },
+      ]
+    },
+    options: {
+      indexAxis: "y",
+      scales: { x: { min: 0, max: 1, title: { display: true, text: "score (0-1)" } } }
+    }
+  });
+</script>
+{% else %}
+<p>No score distribution data in the latest run.</p>
+{% endif %}
+
+<h2>Threshold-proximity candidates</h2>
+{% set cands = data.findings.threshold_proximity.candidates %}
+<table>
+  <thead><tr><th>Camera</th><th>Label</th><th>Threshold</th><th>In band</th><th>Total</th><th>In-band %</th><th>Tuning candidate?</th></tr></thead>
+  <tbody>
+  {% for c in cands %}
+    <tr class="{{ 'highlight' if c.is_tuning_candidate else '' }}">
+      <td>{{ c.camera }}</td>
+      <td>{{ c.label }}</td>
+      <td>{{ c.threshold }}</td>
+      <td>{{ c.in_band }}</td>
+      <td>{{ c.total }}</td>
+      <td>{{ "%.0f"|format(c.in_band_pct * 100) }}%</td>
+      <td>{{ "✔" if c.is_tuning_candidate else "—" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
