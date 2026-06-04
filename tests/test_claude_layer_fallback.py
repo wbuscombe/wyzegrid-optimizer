@@ -58,6 +58,37 @@ def test_stationary_finding_becomes_max_frames_recommendation(stationary_flicker
     assert flicker[0]["risk_class"] == "safe"
 
 
+def test_stationary_dedup_collapses_multiple_hotspots_into_one_rec():
+    """Multiple flicker hotspots on the same (camera, label) must collapse
+    to a single recommendation — otherwise the dashboard shows 10 dupes for
+    a single street-parking pattern."""
+    from optimizer.claude_layer import _rule_layer_fallback_recs
+    # Three hotspots, same camera+label
+    findings = {
+        "stationary": {"flicker_hotspots": [
+            {"camera": "back_yard_cam", "label": "car",
+             "position_bucket": [3, 5], "flicker_event_count": 12,
+             "current_stationary_max_frames": 100, "evidence": ""},
+            {"camera": "back_yard_cam", "label": "car",
+             "position_bucket": [7, 5], "flicker_event_count": 8,
+             "current_stationary_max_frames": 100, "evidence": ""},
+            {"camera": "back_yard_cam", "label": "car",
+             "position_bucket": [11, 5], "flicker_event_count": 15,
+             "current_stationary_max_frames": 100, "evidence": ""},
+        ]},
+        "model_limit": {"candidates": []},
+        "threshold_proximity": {"candidates": []},
+    }
+    config_map = {("back_yard_cam", "car"): {"min_score": 0.6, "threshold": 0.7,
+                                              "min_area": 8000, "stationary_max_frames": 100,
+                                              "zones": []}}
+    recs = _rule_layer_fallback_recs(findings, config_map)
+    flicker_recs = [r for r in recs if r["param"] == "stationary.max_frames"]
+    assert len(flicker_recs) == 1
+    assert "35 brief detections" in flicker_recs[0]["rationale"]
+    assert "3 fixed positions" in flicker_recs[0]["rationale"]
+
+
 def test_empty_findings_yield_empty_recommendations(config_map):
     from optimizer.analysis import run_all
     findings = run_all([], config_map, history_events=[])

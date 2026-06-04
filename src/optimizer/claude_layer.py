@@ -152,24 +152,38 @@ def _rule_layer_fallback_recs(findings: dict, config_map: dict) -> list[dict]:
             "expected_effect": "Marginal increase in detections of this label; monitor for FP uptick.",
         })
 
-    # Stationary flicker hotspots → stationary.max_frames candidate
+    # Stationary flicker hotspots → stationary.max_frames candidate.
+    # Multiple hotspot buckets on the same (camera, label) all propose the SAME
+    # config change — collapse to one recommendation per (camera, label, param)
+    # with a combined evidence count.
+    from collections import defaultdict
+    stationary_groups: dict[tuple[str, str], dict] = defaultdict(
+        lambda: {"flicker_total": 0, "hotspots": 0, "current": None}
+    )
     for f in findings.get("stationary", {}).get("flicker_hotspots", []):
-        current = f.get("current_stationary_max_frames")
+        key = (f["camera"], f["label"])
+        stationary_groups[key]["flicker_total"] += f["flicker_event_count"]
+        stationary_groups[key]["hotspots"] += 1
+        stationary_groups[key]["current"] = f.get("current_stationary_max_frames")
+
+    for (cam, label), agg in stationary_groups.items():
+        current = agg["current"]
         proposed = (current or 200) // 2 if current and current > 50 else None
         recs.append({
-            "camera": f["camera"],
-            "label": f["label"],
+            "camera": cam,
+            "label": label,
             "param": "stationary.max_frames",
             "current_value": current,
             "proposed_value": proposed,
             "rationale": (
-                f"{f['flicker_event_count']} brief detections at the same position "
-                "indicate a parked-object / fixed-misclassification pattern. Lowering "
-                "stationary.max_frames would stop re-triggering on the stationary item."
+                f"{agg['flicker_total']} brief detections across "
+                f"{agg['hotspots']} fixed positions indicate parked-object / "
+                f"fixed-misclassification patterns. Lowering stationary.max_frames "
+                f"would stop re-triggering on these stationary items."
             ),
             "risk_class": "safe",
             "confidence": 0.7,
-            "expected_effect": "Stop re-triggering on the parked/fixed object.",
+            "expected_effect": "Stop re-triggering on parked/fixed objects.",
         })
 
     return recs
