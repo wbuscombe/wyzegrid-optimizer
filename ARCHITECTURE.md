@@ -53,7 +53,9 @@
 | `optimizer.analysis.regression` | trailing-baseline drift detection, correlated with config_snapshots |
 | `optimizer.analysis.per_camera_profile` | label coverage per camera (porch-never-sees-dogs detector) |
 | `optimizer.analysis.stationary` | parked-car / waving-flag re-trigger pattern |
-| `optimizer.analysis.model_limit` | high motion / low detection → label the model can't classify |
+| `optimizer.analysis.model_limit` | high motion / low detection → label the model can't classify (filters out class-swap suspects so it isn't fooled by mislabeled events) |
+| `optimizer.analysis.class_swap` | `(camera, label)` whose events are likely misclassifications of a different class — feeds `suspect_event_ids` to `model_limit` to harden it |
+| `optimizer.analysis.shape_mismatch` | person events whose box geometry is animal-shaped (low + short) + below-confident score |
 | `optimizer.claude_layer` | structured-summary → Haiku → JSON recommendations + cost log |
 | `optimizer.scheduler` | run loop with Kometa-window backoff and interval config |
 | `optimizer.run_once` | one-shot analysis cycle (manual or cron) |
@@ -147,6 +149,49 @@ CREATE INDEX idx_recs_run ON recommendations(run_id);
 | Token budget exceeded | Abort the Claude call mid-run; rule-layer findings still recorded. |
 | Database locked | Wait + retry with backoff; if persistent, abort cycle. |
 | Phantom mode | Bypass all of the above; serve synthetic data. |
+
+## Detector ordering — class-swap hardening
+
+The detectors don't simply run in parallel. **`class_swap` runs BEFORE
+`model_limit`, and its `suspect_event_ids` are threaded into the latter so
+class-swap misclassifications are subtracted before the zero-detection check.**
+
+Without this, the week-1 review surfaced a live failure mode: `back_deck_cam`
+"dog" events that were actually a visiting cat being mislabeled. The previous
+`model_limit` detector saw the new "dog" events and dropped the model-limit
+flag — which would have caused Phase 2's auto-tune loop to read the
+misclassifications as "model is detecting dogs now" and nudge the threshold
+in the wrong direction (a self-reinforcing error). The fix:
+
+1. `class_swap.detect` identifies `(camera, label)` pairs whose events look
+   like a different class (low scores + box position/height + time overlap
+   with another label on the same camera). It returns each suspect event's id.
+2. `model_limit.detect` receives that id set and treats those events as if
+   they don't exist when counting per-label events. So a camera whose only
+   "dog" events are cat misclassifications is correctly re-flagged.
+
+The same hardening applies to `shape_mismatch` (animal-shaped person events),
+though that detector doesn't feed `model_limit` directly — it surfaces the
+candidates as their own model-limit findings.
+
+## Confidence heuristic
+
+Every recommendation populates a `confidence ∈ (0, 1]` field via a transparent
+heuristic in `claude_layer._rule_layer_fallback_recs`. Phase 2's auto-apply
+gate will read this. The per-type rules:
+
+| Type | Heuristic |
+|---|---|
+| Threshold tuning | `0.40 + 0.35×in_band_pct + 0.25×min(1, total/100)` — clusters tightly + larger dataset → higher confidence. Capped at 0.90. |
+| Stationary | `0.50 + 0.05×min(8, hotspots) + 0.001×min(400, flicker_total)` — more co-located fixed-positions × more repeats → higher. Capped at 0.92. |
+| Model-limit (zero detection) | `0.55 + 0.001×min(500, camera_total)` — busier camera = stronger evidence the model just can't classify this label. Capped at 0.92. |
+| Class-swap | `0.55 + 0.04×min(10, overlap_count)` — more co-located+co-temporal pairs with another label → higher. Capped at 0.95. |
+| Shape-mismatch | `0.45 + 0.08×min(5, count)` — more animal-shaped person events → higher. Capped at 0.85. |
+
+These are deliberately simple and inspectable. Phase 2's auto-apply will
+gate on something like `confidence >= 0.75 AND risk_class == "safe"`. Any
+`risk_class == "model-limit"` is filtered out before the gate is even
+considered — class-swap and shape-mismatch findings can NEVER auto-apply.
 
 ## Phase 2 hook points (not built yet)
 

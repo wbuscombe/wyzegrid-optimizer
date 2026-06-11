@@ -56,6 +56,19 @@ risk_class: "model-limit" and proposed_value: null, with the rationale stating \
 plainly that this is a model limit and no config change will fix it. Do not \
 invent a threshold tweak for a model-limit finding.
 
+2a. CLASS-SWAP findings (a (camera, label) whose events are likely \
+misclassifications of a different class — e.g. a visiting cat being labeled \
+"dog") are ALWAYS risk_class: "model-limit" with proposed_value: null. \
+Threshold/min_area/zone changes cannot fix which LABEL the model assigns to \
+something it sees — the model is confusing two classes, period. Recommending a \
+config tweak for a class-swap finding is forbidden. The rationale must state \
+which class the events are likely being confused with.
+
+2b. SHAPE-MISMATCH findings (person events whose box geometry is animal-shaped \
+— low + short — and whose score is below the person confident range) are \
+ALWAYS risk_class: "model-limit" with proposed_value: null. Same reason: this \
+is class confusion the model is doing, not a config knob.
+
 3. Output is a JSON object with one key "recommendations": [ ... ]. Each entry is:
    {
      "camera": str | null,
@@ -107,11 +120,19 @@ def _cost(input_tokens: int, output_tokens: int) -> float:
 def _rule_layer_fallback_recs(findings: dict, config_map: dict) -> list[dict]:
     """When Claude isn't available, emit recommendations directly from the
     rule layer with sensible default risk classes. No LLM polish, but the
-    service still produces actionable output."""
+    service still produces actionable output.
+
+    Every recommendation populates `confidence` in [0, 1] using a transparent,
+    data-driven heuristic per type — Phase 2's auto-apply gate reads this
+    field, so the heuristic is documented in ARCHITECTURE.md. The rule:
+    more data + stronger pattern → higher confidence; thin or noisy → lower."""
     recs: list[dict] = []
 
-    # Model-limit findings → must be tagged honestly
-    for f in findings.get("model_limit", {}).get("candidates", []):
+    # ---- Class-swap findings (CRITICAL — runs before model-limit so duplicates
+    #      are suppressed) ---------------------------------------------------
+    swap_pairs_emitted: set[tuple[str, str]] = set()
+    for f in findings.get("class_swap", {}).get("candidates", []):
+        confidence = min(0.95, 0.55 + 0.04 * min(10, f["overlap_count"]))
         recs.append({
             "camera": f["camera"],
             "label": f["label"],
@@ -119,23 +140,75 @@ def _rule_layer_fallback_recs(findings: dict, config_map: dict) -> list[dict]:
             "current_value": None,
             "proposed_value": None,
             "rationale": (
-                f"Camera produced {f['camera_total_events']} detections of other "
-                f"labels but zero of '{f['label']}'. Almost certainly a model-limit "
-                "on the CPU-only model; no config change will fix this."
+                f"{f['overlap_count']} '{f['label']}' events on {f['camera']} share "
+                f"box position and time with '{f['confused_with']}' events; mean "
+                f"score {f['mean_score']:.2f} is below the label's confident range "
+                f"({f['label_confident_low']:.2f}). The model is confusing the two "
+                f"classes — config cannot fix class assignment."
             ),
             "risk_class": "model-limit",
-            "confidence": 0.85,
+            "confidence": confidence,
+            "expected_effect": "No change recommended; documented as class confusion.",
+        })
+        swap_pairs_emitted.add((f["camera"], f["label"]))
+
+    # ---- Shape-mismatch findings ----------------------------------------------
+    for f in findings.get("shape_mismatch", {}).get("candidates", []):
+        confidence = min(0.85, 0.45 + 0.08 * min(5, f["count"]))
+        recs.append({
+            "camera": f["camera"],
+            "label": f.get("label", "person"),
+            "param": None,
+            "current_value": None,
+            "proposed_value": None,
+            "rationale": (
+                f"{f['count']} 'person' events on {f['camera']} have animal-like "
+                f"box geometry (low + short) and scores below the person confident "
+                f"range ({f['person_confident_low']:.2f}). Likely misclassified "
+                f"animal. Config cannot fix class confusion."
+            ),
+            "risk_class": "model-limit",
+            "confidence": confidence,
+            "expected_effect": "No change recommended; surfaced for human review.",
+        })
+
+    # ---- Zero-detection model-limit ------------------------------------------
+    for f in findings.get("model_limit", {}).get("candidates", []):
+        # Skip if class-swap already covered this (camera, label) — same
+        # underlying weakness, no need for two rows.
+        if (f["camera"], f["label"]) in swap_pairs_emitted:
+            continue
+        total = f["camera_total_events"]
+        # More other-label activity → stronger evidence the camera is "live"
+        # and the specific label just doesn't classify. Cap at 0.92.
+        confidence = min(0.92, 0.55 + 0.001 * min(500, total))
+        recs.append({
+            "camera": f["camera"],
+            "label": f["label"],
+            "param": None,
+            "current_value": None,
+            "proposed_value": None,
+            "rationale": (
+                f"Camera produced {total} detections of other labels but zero of "
+                f"'{f['label']}' (after excluding class-swap suspects). Almost "
+                f"certainly a model-limit on the CPU-only model; no config change "
+                f"will fix this."
+            ),
+            "risk_class": "model-limit",
+            "confidence": confidence,
             "expected_effect": "No change recommended; documented as model limit.",
         })
 
-    # Tuning candidates from threshold_proximity
+    # ---- Threshold-proximity tuning candidates -------------------------------
     for c in findings.get("threshold_proximity", {}).get("candidates", []):
         if not c.get("is_tuning_candidate"):
             continue
         thr = c["threshold"]
-        # Conservative recommendation: lower threshold by 0.02 if many events sit just below
-        cfg = config_map.get((c["camera"], c["label"]), {}) or {}
         proposed = round(max(0.50, thr - 0.02), 2)
+        in_band_pct = c.get("in_band_pct", 0.0)
+        total = c.get("total", 0)
+        # Confidence: cluster density (in-band share) + sample-size signal.
+        confidence = min(0.90, 0.40 + 0.35 * in_band_pct + 0.25 * min(1.0, total / 100))
         recs.append({
             "camera": c["camera"],
             "label": c["label"],
@@ -148,7 +221,7 @@ def _rule_layer_fallback_recs(findings: dict, config_map: dict) -> list[dict]:
                 "decision boundary on a meaningful number of borderline events."
             ),
             "risk_class": "safe" if proposed >= 0.55 else "risky",
-            "confidence": 0.6,
+            "confidence": confidence,
             "expected_effect": "Marginal increase in detections of this label; monitor for FP uptick.",
         })
 
@@ -169,6 +242,11 @@ def _rule_layer_fallback_recs(findings: dict, config_map: dict) -> list[dict]:
     for (cam, label), agg in stationary_groups.items():
         current = agg["current"]
         proposed = (current or 200) // 2 if current and current > 50 else None
+        # Confidence: more hotspots × more events per hotspot = stronger signal.
+        confidence = min(
+            0.92,
+            0.50 + 0.05 * min(8, agg["hotspots"]) + 0.001 * min(400, agg["flicker_total"]),
+        )
         recs.append({
             "camera": cam,
             "label": label,
@@ -182,7 +260,7 @@ def _rule_layer_fallback_recs(findings: dict, config_map: dict) -> list[dict]:
                 f"would stop re-triggering on these stationary items."
             ),
             "risk_class": "safe",
-            "confidence": 0.7,
+            "confidence": confidence,
             "expected_effect": "Stop re-triggering on parked/fixed objects.",
         })
 
