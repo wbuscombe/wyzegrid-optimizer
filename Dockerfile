@@ -1,7 +1,7 @@
 # Pinned to the python:3.12-slim registry manifest digest resolved 2026-06-04.
 # Bump deliberately with:
 #   docker pull python:3.12-slim && docker inspect python:3.12-slim --format '{{index .RepoDigests 0}}'
-FROM python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203
+FROM python:3.14-slim@sha256:c845af9399020c7e562969a13689e929074a10fd057acd1b1fad06a2fb068e97
 
 # Non-root user — uid/gid 1000 matches the cargo user on the NAS.
 RUN groupadd --system --gid 1000 app \
