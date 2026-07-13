@@ -20,7 +20,7 @@
               └───────┬───────┘
                       ▼
        ┌────────────────────────────┐
-       │  optimizer.analysis.*      │  7 detectors, pure functions
+       │  optimizer.analysis.*      │  9 detectors, pure functions
        │   (deterministic)          │  → produces a findings dict
        └──────────────┬─────────────┘
                       ▼

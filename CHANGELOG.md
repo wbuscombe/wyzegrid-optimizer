@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added — Professionalization audit (2026-07-13)
+- **CI workflow** (`.github/workflows/phantom.yml`) — runs `pytest` + the zero-secret `PHANTOM_MODE=1` dashboard smoke boot on push/PR. Was referenced by `.phantom.yml`/README/CONTRIBUTING and registered in `dependabot.yml`, but the `.github/workflows/` directory never existed.
+- `PROFESSIONALIZATION-AUDIT.md` — first §4 audit of the repo.
+- `.gitignore` image globs (`*.jpg`/`*.png`/…) — defense-in-depth against ever committing camera footage to this public repo (no code path writes images today).
+
+### Fixed — docs / config currency (2026-07-13)
+- README "What the analysis surfaces" table now lists all 9 detectors (added class-swap + shape-mismatch rows).
+- ARCHITECTURE ASCII diagram now says "9 detectors" (matches the module table below it).
+- `.env.example` now documents `OPTIMIZER_DATA_DIR` / `OPTIMIZER_DB_PATH`.
+
 ### Added — Detection-quality detectors (2026-06-11)
 - **Class-swap detector** (`optimizer.analysis.class_swap`) — finds `(camera, label)` pairs whose events are likely misclassifications of another class. Returns `suspect_event_ids` so `model_limit` can filter them out.
 - **Shape-mismatch detector** (`optimizer.analysis.shape_mismatch`) — surfaces person events with animal-like box geometry (low + short) AND scores below the person confident-range. Tagged `model-limit` (config can't fix class confusion).

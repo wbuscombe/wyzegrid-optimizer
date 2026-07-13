@@ -99,6 +99,8 @@ The rule detectors compute:
 | Per-camera profile | Which labels does each camera reliably detect vs. never? |
 | Stationary re-trigger | The parked-car / waving-flag pattern. |
 | Model-limit candidates | Labels with motion firing but detection rarely confirming → likely model can't classify; don't waste threshold tweaks on it. |
+| Class swap | Is a `(camera, label)` systematically a misclassification of a different class (e.g. a cat labeled dog)? Feeds suspect events into the model-limit detector so it isn't fooled by them. |
+| Shape mismatch | Are "person" events actually animal-shaped — a low, short box below a confident score? |
 
 Claude reads the structured findings and produces plain-language recommendations tagged `safe` / `risky` / `model-limit`.
 
