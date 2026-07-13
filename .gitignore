@@ -40,3 +40,15 @@ data/
 docker/*.local.yml
 docker-compose.override.yml
 docker-compose.*.local.yml
+
+# Camera footage / snapshots — MUST NEVER be committed (public repo). No code path writes images
+# today; this is defense-in-depth against a future snapshot feature. Use `git add -f` for an
+# intentional non-footage asset (e.g. a diagram).
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.gif
+*.mp4
+*.mov
+*.heic
