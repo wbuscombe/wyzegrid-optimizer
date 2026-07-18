@@ -11,7 +11,7 @@ import sys
 import time
 
 from . import config as cfg_module
-from . import db, ingest, zma
+from . import db, ingest, ntfy, zma
 from .analysis import normalize_config_rows, normalize_events, run_all
 from .claude_layer import interpret
 from .frigate_client import FrigateClient
@@ -26,17 +26,23 @@ def run_cycle() -> dict:
         logger.info("PHANTOM_MODE=1: skipping live ingest. Use the dashboard for the demo view.")
         return {"phantom": True}
 
-    db.init_db(cfg.db_path)
-    client = FrigateClient(cfg.frigate_url)
-    conn = db.connect(cfg.db_path)
-
-    started = time.time()
-    window_start = (
-        db.latest_event_start_time(conn) or (started - 7 * 86400)
-    )
-    run_id = db.start_run(conn, window_start, started)
-
+    # Setup lives INSIDE the try so a failure during it (DB init, Frigate client,
+    # connect, start_run) still fires the failure alert instead of escaping
+    # silently — the gap that hid the 2026-07-05 outage. conn/run_id are guarded
+    # in the except because a failure may occur before they are assigned.
+    conn = None
+    run_id = None
     try:
+        db.init_db(cfg.db_path)
+        client = FrigateClient(cfg.frigate_url)
+        conn = db.connect(cfg.db_path)
+
+        started = time.time()
+        window_start = (
+            db.latest_event_start_time(conn) or (started - 7 * 86400)
+        )
+        run_id = db.start_run(conn, window_start, started)
+
         ingested = ingest.ingest_events(
             conn, client,
             cameras=cfg.cameras_filter or None,
@@ -94,13 +100,26 @@ def run_cycle() -> dict:
             "claude_error": result.error,
         }
     except Exception as e:
-        with db.transaction(conn):
-            db.finish_run(conn, run_id, status="error", findings={}, claude_used=False,
-                          notes=f"{type(e).__name__}: {e}")
+        # Record the run-error row only if we opened a run; but ALWAYS fire the
+        # failure alert — this post_status is what was silent on 2026-07-05
+        # (it ran, but ZMA_WEBHOOK_URL was unset in prod so it no-op'd).
+        if conn is not None and run_id is not None:
+            try:
+                with db.transaction(conn):
+                    db.finish_run(conn, run_id, status="error", findings={},
+                                  claude_used=False, notes=f"{type(e).__name__}: {e}")
+            except Exception:
+                logger.exception("Failed to record run-error status in DB")
         zma.post_status(cfg.zma_webhook_url, "run-error", {"error": str(e)})
+        ntfy.post_alert(
+            cfg.ntfy_url, cfg.ntfy_topic, cfg.ntfy_user, cfg.ntfy_pass,
+            message=f"Optimizer nightly run failed: {type(e).__name__}: {e}",
+            title="wyzegrid-optimizer run-error",
+        )
         raise
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
 
 
 def main() -> int:

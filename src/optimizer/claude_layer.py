@@ -117,6 +117,30 @@ def _cost(input_tokens: int, output_tokens: int) -> float:
     )
 
 
+# Conservative fallback when Claude omits or malforms `confidence`. Kept mid-low
+# so a broken LLM response never yields an auto-applyable rec (Phase-2's
+# auto-apply gate reads this field) yet stays non-zero so the rec still surfaces
+# for human review. The rule-layer path already guarantees (0, 1] via its
+# min()-capped formulas; this brings the Claude path to the same invariant.
+DEFAULT_CLAUDE_CONFIDENCE = 0.5
+
+
+def _clamp_confidence(value: object) -> float:
+    """Coerce a Claude-supplied confidence into [0.0, 1.0].
+
+    Missing / None / non-numeric / NaN / inf → DEFAULT_CLAUDE_CONFIDENCE;
+    otherwise clamped into range. Protects the Phase-2 auto-apply invariant from
+    an LLM that emits 1.5, -0.2, "high", or omits the field entirely.
+    """
+    try:
+        c = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_CLAUDE_CONFIDENCE
+    if c != c or c in (float("inf"), float("-inf")):  # NaN / ±inf
+        return DEFAULT_CLAUDE_CONFIDENCE
+    return max(0.0, min(1.0, c))
+
+
 def _rule_layer_fallback_recs(findings: dict, config_map: dict) -> list[dict]:
     """When Claude isn't available, emit recommendations directly from the
     rule layer with sensible default risk classes. No LLM polish, but the
@@ -222,7 +246,9 @@ def _rule_layer_fallback_recs(findings: dict, config_map: dict) -> list[dict]:
             ),
             "risk_class": "safe" if proposed >= 0.55 else "risky",
             "confidence": confidence,
-            "expected_effect": "Marginal increase in detections of this label; monitor for FP uptick.",
+            "expected_effect": (
+                "Marginal increase in detections of this label; monitor for FP uptick."
+            ),
         })
 
     # Stationary flicker hotspots → stationary.max_frames candidate.
@@ -309,7 +335,8 @@ def interpret(
         recs = _rule_layer_fallback_recs(findings, config_map)
         return ClaudeResult(used=False, recommendations=recs, input_tokens=0,
                             output_tokens=0, cost_usd=0.0,
-                            error=f"estimated input {est_input} tokens > budget {token_budget}; fallback used")
+                            error=(f"estimated input {est_input} tokens > "
+                                   f"budget {token_budget}; fallback used"))
 
     try:
         msg = client.messages.create(
@@ -330,6 +357,12 @@ def interpret(
         recs = payload.get("recommendations", [])
         if not isinstance(recs, list):
             raise ValueError("recommendations not a list")
+        # Claude path: enforce the same (0, 1] confidence invariant the rule-layer
+        # already holds. An LLM can emit 1.5, -0.2, "high", or omit the field —
+        # any of which would otherwise reach the Phase-2 auto-apply gate as-is.
+        for r in recs:
+            if isinstance(r, dict):
+                r["confidence"] = _clamp_confidence(r.get("confidence"))
     except Exception as e:
         logger.warning("Claude returned non-JSON payload: %s — using fallback", e)
         recs = _rule_layer_fallback_recs(findings, config_map)

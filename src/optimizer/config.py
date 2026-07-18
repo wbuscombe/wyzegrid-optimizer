@@ -45,10 +45,20 @@ class Config:
     token_budget: int
 
     # Scheduling
-    interval_seconds: int
+    interval_seconds: int          # legacy rolling cadence; superseded by the wall-clock anchor
+    run_at_hour: int               # local wall-clock hour (0-23) the daily run anchors to
+    run_at_minute: int             # local wall-clock minute (0-59)
 
     # ZMA optional status webhook
     zma_webhook_url: str
+
+    # ntfy optional failure alert (deny-all server → all four fields required to
+    # publish; unset = no-op). Kept separate from ZMA so either channel can be
+    # enabled independently.
+    ntfy_url: str
+    ntfy_topic: str
+    ntfy_user: str
+    ntfy_pass: str
 
     # Dashboard
     dashboard_host: str
@@ -75,7 +85,13 @@ def load() -> Config:
         model=os.environ.get("OPTIMIZER_MODEL", "claude-haiku-4-5").strip(),
         token_budget=_env_int("OPTIMIZER_TOKEN_BUDGET", 20000),
         interval_seconds=_env_int("OPTIMIZER_INTERVAL_SECONDS", 86400),
+        run_at_hour=_env_int("OPTIMIZER_RUN_AT_HOUR", 2),
+        run_at_minute=_env_int("OPTIMIZER_RUN_AT_MINUTE", 0),
         zma_webhook_url=os.environ.get("ZMA_WEBHOOK_URL", "").strip(),
+        ntfy_url=os.environ.get("NTFY_URL", "").strip(),
+        ntfy_topic=os.environ.get("NTFY_TOPIC", "").strip(),
+        ntfy_user=os.environ.get("NTFY_USER", "").strip(),
+        ntfy_pass=os.environ.get("NTFY_PASS", ""),  # not stripped — it's a secret
         dashboard_host=os.environ.get("DASHBOARD_HOST", "0.0.0.0"),
         dashboard_port=_env_int("DASHBOARD_PORT", 5004),
         data_dir=data_dir,

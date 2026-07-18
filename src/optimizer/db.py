@@ -14,6 +14,19 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 
+def _clamp01(value: object, default: float = 0.0) -> float:
+    """Storage-layer guard for the confidence (0..1) invariant, regardless of
+    source. Missing/None/non-numeric/NaN → `default` (preserves the prior
+    `float(x or 0.0)` behaviour); anything else is clamped into [0.0, 1.0]."""
+    try:
+        c = float(value)
+    except (TypeError, ValueError):
+        return default
+    if c != c:  # NaN
+        return default
+    return max(0.0, min(1.0, c))
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
   id              TEXT PRIMARY KEY,
@@ -136,7 +149,11 @@ def upsert_event(conn: sqlite3.Connection, e: dict) -> None:
             e["id"],
             e["camera"],
             e["label"],
-            (e.get("sub_label") or [None])[0] if isinstance(e.get("sub_label"), list) else e.get("sub_label"),
+            (
+                (e.get("sub_label") or [None])[0]
+                if isinstance(e.get("sub_label"), list)
+                else e.get("sub_label")
+            ),
             float((e.get("data") or {}).get("score") or e.get("top_score") or 0.0),
             float(e["start_time"]),
             float(e["end_time"]) if e.get("end_time") else None,
@@ -179,7 +196,9 @@ def insert_config_snapshots(
     )
 
 
-def start_run(conn: sqlite3.Connection, window_start: Optional[float], window_end: Optional[float]) -> int:
+def start_run(
+    conn: sqlite3.Connection, window_start: Optional[float], window_end: Optional[float]
+) -> int:
     cur = conn.execute(
         "INSERT INTO analysis_runs (started_at, status, events_window_start, events_window_end) "
         "VALUES (?, 'running', ?, ?)",
@@ -240,7 +259,7 @@ def insert_recommendations(conn: sqlite3.Connection, run_id: int, recs: list[dic
                 str(r.get("proposed_value")) if r.get("proposed_value") is not None else None,
                 r.get("rationale"),
                 r.get("risk_class", "safe"),
-                float(r.get("confidence") or 0.0),
+                _clamp01(r.get("confidence")),
                 r.get("expected_effect"),
             )
             for r in recs
@@ -288,7 +307,8 @@ def latest_run(conn: sqlite3.Connection) -> Optional[sqlite3.Row]:
 def recommendations_for_run(conn: sqlite3.Connection, run_id: int) -> list[sqlite3.Row]:
     return list(
         conn.execute(
-            "SELECT * FROM recommendations WHERE run_id=? ORDER BY risk_class, camera, label, param",
+            "SELECT * FROM recommendations WHERE run_id=? "
+            "ORDER BY risk_class, camera, label, param",
             (run_id,),
         )
     )

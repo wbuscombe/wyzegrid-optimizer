@@ -32,10 +32,12 @@ def test_every_recommendation_has_nonnull_confidence(
 def test_threshold_confidence_scales_with_sample_size():
     """Same in-band-pct but bigger dataset → higher confidence."""
     from optimizer.claude_layer import _rule_layer_fallback_recs
-    config_map = {("front_porch_cam", "person"): {"min_score": 0.55, "threshold": 0.65,
-                                                   "min_area": 3000,
-                                                   "stationary_max_frames": None,
-                                                   "zones": []}}
+    config_map = {
+        ("front_porch_cam", "person"): {
+            "min_score": 0.55, "threshold": 0.65, "min_area": 3000,
+            "stationary_max_frames": None, "zones": [],
+        }
+    }
     # Small dataset, 50% in-band
     small_findings = {
         "threshold_proximity": {"candidates": [{
@@ -142,3 +144,91 @@ def test_shape_mismatch_recommendation_uses_model_limit_risk_class():
     recs = _rule_layer_fallback_recs(findings, {})
     assert recs[0]["risk_class"] == "model-limit"
     assert recs[0]["proposed_value"] is None
+
+
+# ---- Claude-path confidence clamp (Deferred #1) ----------------------------
+
+def test_clamp_confidence_passes_through_valid():
+    from optimizer.claude_layer import _clamp_confidence
+    assert _clamp_confidence(0.0) == 0.0
+    assert _clamp_confidence(1.0) == 1.0
+    assert _clamp_confidence(0.73) == 0.73
+
+
+def test_clamp_confidence_clamps_out_of_range():
+    from optimizer.claude_layer import _clamp_confidence
+    assert _clamp_confidence(1.5) == 1.0
+    assert _clamp_confidence(95) == 1.0
+    assert _clamp_confidence(-0.2) == 0.0
+
+
+def test_clamp_confidence_defaults_on_malformed():
+    from optimizer.claude_layer import _clamp_confidence, DEFAULT_CLAUDE_CONFIDENCE
+    assert _clamp_confidence(None) == DEFAULT_CLAUDE_CONFIDENCE
+    assert _clamp_confidence("high") == DEFAULT_CLAUDE_CONFIDENCE
+    assert _clamp_confidence(float("nan")) == DEFAULT_CLAUDE_CONFIDENCE
+    assert _clamp_confidence(float("inf")) == DEFAULT_CLAUDE_CONFIDENCE
+
+
+def test_claude_path_clamps_confidence_end_to_end(monkeypatch):
+    """A mocked Claude success response with out-of-range / missing / malformed
+    confidence must come back clamped into [0, 1] — the invariant Phase-2
+    auto-apply relies on. Injects a fake `anthropic` module so no network or SDK
+    install is needed."""
+    import json as _json
+    import sys
+    import types
+
+    from optimizer.claude_layer import DEFAULT_CLAUDE_CONFIDENCE, interpret
+
+    recs = [
+        {"camera": "c", "label": "person", "confidence": 1.5},   # over 1
+        {"camera": "c", "label": "dog", "confidence": -0.3},     # under 0
+        {"camera": "c", "label": "cat"},                          # missing
+        {"camera": "c", "label": "car", "confidence": "high"},   # non-numeric
+    ]
+
+    class _Usage:
+        input_tokens = 10
+        output_tokens = 20
+
+    class _Block:
+        type = "text"
+        text = _json.dumps({"recommendations": recs})
+
+    class _Msg:
+        content = [_Block()]
+        usage = _Usage()
+
+    class _Messages:
+        def create(self, **kw):
+            return _Msg()
+
+    class _Client:
+        def __init__(self, **kw):
+            self.messages = _Messages()
+
+    fake = types.ModuleType("anthropic")
+    fake.Anthropic = _Client
+    monkeypatch.setitem(sys.modules, "anthropic", fake)
+
+    result = interpret({}, {}, api_key="sk-ant-fake", token_budget=10_000_000)
+    assert result.used is True
+    by_label = {r["label"]: r["confidence"] for r in result.recommendations}
+    assert by_label["person"] == 1.0
+    assert by_label["dog"] == 0.0
+    assert by_label["cat"] == DEFAULT_CLAUDE_CONFIDENCE
+    assert by_label["car"] == DEFAULT_CLAUDE_CONFIDENCE
+    for v in by_label.values():
+        assert 0.0 <= v <= 1.0
+
+
+def test_db_clamp01_enforces_storage_invariant():
+    """The storage layer is the last line of defense on the (0,1] invariant."""
+    from optimizer.db import _clamp01
+    assert _clamp01(1.5) == 1.0
+    assert _clamp01(-0.2) == 0.0
+    assert _clamp01(0.5) == 0.5
+    assert _clamp01(None) == 0.0          # preserves prior float(x or 0.0) behaviour
+    assert _clamp01("nope") == 0.0
+    assert _clamp01(float("nan")) == 0.0
