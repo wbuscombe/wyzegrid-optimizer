@@ -33,6 +33,8 @@ from . import (
     model_limit,
     class_swap,
     shape_mismatch,
+    object_identity,
+    service_schedule,
 )
 from .normalize import normalize_events, normalize_config_rows
 
@@ -45,11 +47,20 @@ DETECTORS = {
     "stationary": stationary.detect,
     "class_swap": class_swap.detect,
     "shape_mismatch": shape_mismatch.detect,
+    "object_identity": object_identity.detect,
+    "service_schedule": service_schedule.detect,
     "model_limit": model_limit.detect,
 }
 
 
-def run_all(events: list[dict], config_map: dict, history_events: list[dict] | None = None) -> dict:
+def run_all(
+    events: list[dict],
+    config_map: dict,
+    history_events: list[dict] | None = None,
+    *,
+    schedule_events: list[dict] | None = None,
+    timezone_name: str = "UTC",
+) -> dict:
     """
     Run every detector and return a single findings dict.
 
@@ -80,6 +91,12 @@ def run_all(events: list[dict], config_map: dict, history_events: list[dict] | N
         "class_swap": class_swap_findings,
         "shape_mismatch": shape_mismatch.detect(events, config_map),
         "model_limit": model_limit.detect(events, config_map, suspect_event_ids),
+        "object_identity": object_identity.detect(events, config_map),
+        "service_schedule": service_schedule.detect(
+            schedule_events if schedule_events is not None else swap_events,
+            config_map,
+            timezone_name=timezone_name,
+        ),
     }
 
 

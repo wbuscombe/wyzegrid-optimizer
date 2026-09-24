@@ -2,6 +2,27 @@
 _First audit, generated 2026-07-13 against §4 of the professionalization standard. This repo was
 built with standards at creation but had never been through a dedicated audit pass._
 
+## 2026-09-24 — object identity and household-service schedule increment
+
+- **Scope:** local source, tests, documentation, Phantom data, and read-only
+  dashboard only. No Frigate/NAS/device/service access, deployment, credential,
+  alert, publication, or config-write path was used.
+- **Identity boundary:** the new inventory reports only the base label and
+  upstream `sub_label` stored on the Frigate event. It never derives a service
+  identity from an image or silently relabels a generic vehicle.
+- **Schedule boundary:** garbage, recycling, mail, and package windows use up to
+  56 days of explicitly identified events; same-day repeats collapse to one
+  visit; a learned result needs at least three distinct weeks and 60% agreement
+  on the weekday. An invalid timezone is visible and falls back to UTC.
+- **Verification:** 68/68 pytest tests passed in a Python 3.12 dependency-complete
+  environment; the complete pre-commit suite passed, including gitleaks and
+  full-repository flake8; `git diff --check` passed; and the Phantom dashboard
+  rendered both new sections in a 200 response.
+- **Release boundary:** this audit made no live Frigate/NAS/device/config contact.
+  Repository shipping follows the normal reviewed branch/PR workflow, and
+  production must not be described as updated until the deployed revision and
+  dashboard health are independently verified.
+
 ## Ecosystem
 
 Python ≥3.11 (Docker pins 3.12), Flask dashboard + a nightly ingest/analyze scheduler. Read-only

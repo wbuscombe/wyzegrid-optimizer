@@ -74,6 +74,74 @@
     <p>None.</p>
   {% endif %}
 </section>
+
+{% set identities = data.findings.get("object_identity") %}
+<section>
+  <h2>Detected object identities</h2>
+  {% if identities %}
+    <p>
+      {{ identities.events }} events in the current window;
+      {{ identities.sub_labeled_events }} carry an upstream sub-label.
+      Generic vehicle events without a more specific identity:
+      <strong>{{ identities.unresolved_vehicle_events }}</strong>.
+    </p>
+    {% if identities.rows %}
+    <table>
+      <thead><tr><th>Camera</th><th>Base label</th><th>Sub-label</th><th>Granularity</th><th>Count</th></tr></thead>
+      <tbody>
+      {% for row in identities.rows %}
+        <tr>
+          <td>{{ row.camera }}</td>
+          <td>{{ row.label }}</td>
+          <td>{{ row.sub_label or "—" }}</td>
+          <td>{{ row.granularity }}</td>
+          <td>{{ row.count }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p>No event identities are available for this window.</p>
+    {% endif %}
+  {% else %}
+    <p>Identity inventory will appear after the next analysis cycle.</p>
+  {% endif %}
+</section>
+
+{% set service = data.findings.get("service_schedule") %}
+<section>
+  <h2>Learned household-service windows</h2>
+  {% if service %}
+    <p>
+      Read-only {{ service.timezone }} analysis of {{ service.events_examined }} events.
+      {{ service.categorized_events }} explicitly identified service events;
+      {{ service.generic_vehicle_events }} generic vehicle events were left unclassified.
+    </p>
+    {% if service.timezone_warning %}<p><strong>{{ service.timezone_warning }}</strong></p>{% endif %}
+    <table>
+      <thead><tr><th>Service</th><th>Status</th><th>Typical window</th><th>Visits / weeks</th><th>Confidence</th><th>Evidence</th></tr></thead>
+      <tbody>
+      {% for row in service.schedules %}
+        <tr>
+          <td>{{ row.category }}</td>
+          <td>{{ row.status }}</td>
+          <td>
+            {% if row.typical_weekday %}
+              {{ row.typical_weekday }} around {{ row.typical_local_time }}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ row.visits }} / {{ row.distinct_weeks }}</td>
+          <td>{{ "%.0f%%"|format(row.confidence * 100) }}</td>
+          <td>{{ row.evidence }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p><small>A schedule is learned only from explicit labels or sub-labels; generic cars and trucks are never guessed into a service category.</small></p>
+  {% else %}
+    <p>Service-window learning will appear after the next analysis cycle.</p>
+  {% endif %}
+</section>
 {% else %}
 <p>No analysis run yet. Trigger one with <code>python -m optimizer.run_once</code>.</p>
 {% endif %}

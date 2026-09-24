@@ -1,6 +1,6 @@
 # wyzegrid-optimizer
 
-Self-driven analysis agent for the WyzeGrid Frigate setup. Continuously reads Frigate's detection output, identifies patterns (mis-tagged events, threshold candidates, false-positive recurrences, model-limit symptoms), and writes plain-language recommendations to a small dashboard.
+Self-driven analysis agent for the WyzeGrid Frigate setup. Continuously reads Frigate's detection output, identifies patterns (mis-tagged events, threshold candidates, false-positive recurrences, model-limit symptoms), inventories the object identities Frigate actually supplied, learns recurring household-service windows from explicit labels/sub-labels, and writes plain-language recommendations to a small dashboard.
 
 **Phase 1 status: read-only analysis only.** This service has zero write paths to Frigate config. Recommendations are surfaced to the dashboard for human review. Auto-apply (Phase 2) is gated on Phase 1 producing trustworthy output for a few cycles first.
 
@@ -101,6 +101,15 @@ The rule detectors compute:
 | Model-limit candidates | Labels with motion firing but detection rarely confirming → likely model can't classify; don't waste threshold tweaks on it. |
 | Class swap | Is a `(camera, label)` systematically a misclassification of a different class (e.g. a cat labeled dog)? Feeds suspect events into the model-limit detector so it isn't fooled by them. |
 | Shape mismatch | Are "person" events actually animal-shaped — a low, short box below a confident score? |
+| Object identity | Which base labels and upstream sub-labels were actually observed per camera? Generic vehicles remain visibly unresolved. |
+| Service schedule | From up to 56 days of explicit service identities, is there a recurring local weekday/time for garbage, recycling, mail, or package delivery? |
+
+The service schedule is deliberately evidence-gated. It accepts explicit Frigate
+labels or `sub_label` values such as `garbage_truck` or `mail_carrier`, collapses
+same-day repeat detections into one visit, and requires at least three distinct
+weeks plus 60% agreement on the weekday before calling a schedule learned.
+Generic `car` or `truck` detections are never guessed into a service category.
+Set `OPTIMIZER_TIMEZONE` to the household's IANA timezone to render local times.
 
 Claude reads the structured findings and produces plain-language recommendations tagged `safe` / `risky` / `model-limit`.
 

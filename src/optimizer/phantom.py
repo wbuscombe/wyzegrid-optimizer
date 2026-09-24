@@ -7,7 +7,6 @@ The dashboard reads these structures when PHANTOM_MODE=1 is set.
 from __future__ import annotations
 
 import time
-from typing import Any
 
 
 PHANTOM_CAMERAS = [
@@ -47,13 +46,14 @@ def phantom_events(now: float | None = None) -> list[dict]:
     events: list[dict] = []
     eid = 0
 
-    def add(camera, label, score, hours_ago, duration=5.0, box=None):
+    def add(camera, label, score, hours_ago, duration=5.0, box=None, sub_label=None):
         nonlocal eid
         eid += 1
         events.append({
             "id": f"phantom-{eid}",
             "camera": camera,
             "label": label,
+            "sub_label": sub_label,
             "score": score,
             "start_time": now - hours_ago * 3600,
             "end_time": (now - hours_ago * 3600 + duration) if duration is not None else None,
@@ -92,6 +92,15 @@ def phantom_events(now: float | None = None) -> list[dict]:
     for i in range(12):
         add("phantom_front_porch", "person", 0.64 + i * 0.001, hours_ago=160 + i)
 
+    # Explicit upstream identities exercise the read-only household-service
+    # schedule learner. Generic cars remain generic and are never guessed.
+    for weeks_ago in range(4):
+        add("phantom_front_yard", "truck", 0.83,
+            hours_ago=24 * (2 + weeks_ago * 7), sub_label="garbage_truck")
+    for weeks_ago in range(4):
+        add("phantom_front_porch", "person", 0.88,
+            hours_ago=24 * (4 + weeks_ago * 7), sub_label="package_delivery")
+
     return events
 
 
@@ -102,7 +111,7 @@ def phantom_findings_and_recommendations() -> tuple[dict, list[dict]]:
 
     config_map = phantom_config_map()
     events = phantom_events()
-    findings = run_all(events, config_map, history_events=[])
+    findings = run_all(events, config_map, history_events=[], schedule_events=events)
     recs = _rule_layer_fallback_recs(findings, config_map)
     return findings, recs
 

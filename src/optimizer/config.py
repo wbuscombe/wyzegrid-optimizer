@@ -48,6 +48,7 @@ class Config:
     interval_seconds: int          # legacy rolling cadence; superseded by the wall-clock anchor
     run_at_hour: int               # local wall-clock hour (0-23) the daily run anchors to
     run_at_minute: int             # local wall-clock minute (0-59)
+    timezone_name: str             # IANA timezone for learned service schedules
 
     # ZMA optional status webhook
     zma_webhook_url: str
@@ -87,6 +88,7 @@ def load() -> Config:
         interval_seconds=_env_int("OPTIMIZER_INTERVAL_SECONDS", 86400),
         run_at_hour=_env_int("OPTIMIZER_RUN_AT_HOUR", 2),
         run_at_minute=_env_int("OPTIMIZER_RUN_AT_MINUTE", 0),
+        timezone_name=os.environ.get("OPTIMIZER_TIMEZONE", "UTC").strip() or "UTC",
         zma_webhook_url=os.environ.get("ZMA_WEBHOOK_URL", "").strip(),
         ntfy_url=os.environ.get("NTFY_URL", "").strip(),
         ntfy_topic=os.environ.get("NTFY_TOPIC", "").strip(),

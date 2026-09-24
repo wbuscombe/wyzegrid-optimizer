@@ -53,12 +53,15 @@ def run_cycle() -> dict:
         now = time.time()
         recent = db.events_in_window(conn, now - 86400, now)
         baseline = db.events_in_window(conn, now - 7 * 86400, now - 86400)
+        schedule_history = db.events_in_window(conn, now - 56 * 86400, now)
         config_rows = db.latest_config_snapshot(conn)
         config_map = normalize_config_rows(config_rows)
         findings = run_all(
             normalize_events(recent),
             config_map,
             history_events=normalize_events(baseline),
+            schedule_events=normalize_events(schedule_history),
+            timezone_name=cfg.timezone_name,
         )
 
         result = interpret(
