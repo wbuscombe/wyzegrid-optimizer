@@ -20,7 +20,10 @@ EXCLUDES=(
   --exclude='.pytest_cache/'
   --exclude='data/'
   # NAS-only — must not be clobbered by --delete
-  --exclude='.env'
+  # Keep the tracked example deployable, then protect every runtime .env variant
+  # (the live file plus dated/operator backup siblings) from transfer and delete.
+  --include='.env.example'
+  --exclude='.env*'
   --exclude='docker-compose.override.yml'
 )
 
