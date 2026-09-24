@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added — Object identity and household-service schedule analysis (2026-09-24)
+- Preserve Frigate `sub_label` and zones through event normalization instead of dropping them after ingestion.
+- Add a read-only object-identity inventory showing base labels, upstream sub-labels, per-camera counts, and unresolved generic vehicle events.
+- Add a conservative 56-day schedule learner for explicitly identified garbage, recycling, mail, and package visits. Same-day repeats collapse to one visit; a learned schedule requires at least three weeks and 60% weekday agreement. Generic cars/trucks are never guessed into a service category.
+- Surface both analyses on the dashboard with backward-compatible empty states for runs created by older versions.
+- Add `OPTIMIZER_TIMEZONE` (default UTC) for local schedule rendering; invalid zones visibly fall back to UTC.
+
 ### Fixed — Deferred audit items (2026-07-18)
 - **Claude-path confidence clamp (Deferred #1)** — `claude_layer.interpret()` now clamps every Claude-supplied `confidence` into `[0, 1]` (missing / non-numeric / NaN / inf → a conservative `0.5` default), matching the `(0, 1]` invariant the rule-layer already held via its `min()`-capped formulas. `db.insert_recommendations` clamps defensively at the storage boundary too. Protects the Phase-2 auto-apply gate. Tested end-to-end with a mocked Claude-success response carrying `1.5` / `-0.3` / missing / `"high"` confidences.
 - **Failure alerting via ntfy (Deferred #2)** — a failed nightly run now alerts. Two parts: (a) run-cycle setup (DB init, Frigate client, connect, start_run) moved INSIDE the try/except so a failure *during setup* — the shape of the 2026-07-05 outage — fires the alert instead of escaping silently (with `conn`/`run_id` guards); (b) a new opt-in `ntfy` poster (HTTP Basic auth, no-op unless `NTFY_URL`/`NTFY_TOPIC`/`NTFY_USER`/`NTFY_PASS` are all set) wired to the run-error path, alongside the existing ZMA webhook. ZMA was never deployed (its own audit calls it redundant with the ntfy pipeline); ntfy is the ecosystem's real, authenticated alert channel. Ships **disabled** — set the four `NTFY_*` vars in prod `.env` to activate.

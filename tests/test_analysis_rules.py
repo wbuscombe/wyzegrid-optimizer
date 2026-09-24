@@ -33,7 +33,10 @@ def test_score_distribution_basic(porch_no_dog_events, config_map):
 
 def test_threshold_proximity_flags_clustered_scores(threshold_band_events, config_map):
     result = threshold_proximity.detect(threshold_band_events, config_map)
-    cand = [c for c in result["candidates"] if c["camera"] == "front_porch_cam" and c["label"] == "person"]
+    cand = [
+        c for c in result["candidates"]
+        if c["camera"] == "front_porch_cam" and c["label"] == "person"
+    ]
     assert len(cand) == 1
     c = cand[0]
     assert c["total"] == 20
@@ -45,7 +48,10 @@ def test_threshold_proximity_clean_data_doesnt_flag(porch_no_dog_events, config_
     """Yard dog scores (~0.78) are well away from 0.55 threshold — not a candidate."""
     result = threshold_proximity.detect(porch_no_dog_events, config_map)
     yd_dog = next(
-        (c for c in result["candidates"] if c["camera"] == "front_yard_cam" and c["label"] == "dog"),
+        (
+            c for c in result["candidates"]
+            if c["camera"] == "front_yard_cam" and c["label"] == "dog"
+        ),
         None,
     )
     assert yd_dog is not None
@@ -126,9 +132,13 @@ def test_model_limit_does_not_flag_quiet_cameras():
         {"id": "x", "camera": "front_yard_cam", "label": "person", "score": 0.7,
          "start_time": 1717500000.0, "end_time": None, "box": None, "false_positive": False}
     ]
-    config_map = {("back_yard_cam", "car"): {"min_score": 0.6, "threshold": 0.7,
-                                              "min_area": 8000, "stationary_max_frames": 100,
-                                              "zones": []}}
+    config_map = {("back_yard_cam", "car"): {
+        "min_score": 0.6,
+        "threshold": 0.7,
+        "min_area": 8000,
+        "stationary_max_frames": 100,
+        "zones": [],
+    }}
     result = model_limit.detect(events, config_map)
     # back_yard_cam has no events at all — must NOT be flagged
     bk = [f for f in result["candidates"] if f["camera"] == "back_yard_cam"]
@@ -140,6 +150,7 @@ def test_run_all_returns_full_findings(porch_no_dog_events, config_map):
     for key in (
         "score_distribution", "threshold_proximity", "fp_patterns",
         "regression", "per_camera_profile", "stationary", "model_limit",
+        "object_identity", "service_schedule",
     ):
         assert key in findings
 

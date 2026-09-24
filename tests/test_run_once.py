@@ -26,6 +26,7 @@ def _cfg(tmp_path, webhook="http://zma.local/hook", ntfy=("", "", "", "")):
         interval_seconds=86400,
         run_at_hour=2,
         run_at_minute=0,
+        timezone_name="UTC",
         zma_webhook_url=webhook,
         ntfy_url=nu,
         ntfy_topic=nt,

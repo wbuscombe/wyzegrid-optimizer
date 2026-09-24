@@ -20,7 +20,7 @@
               └───────┬───────┘
                       ▼
        ┌────────────────────────────┐
-       │  optimizer.analysis.*      │  9 detectors, pure functions
+       │  optimizer.analysis.*      │  11 detectors, pure functions
        │   (deterministic)          │  → produces a findings dict
        └──────────────┬─────────────┘
                       ▼
@@ -56,6 +56,8 @@
 | `optimizer.analysis.model_limit` | high motion / low detection → label the model can't classify (filters out class-swap suspects so it isn't fooled by mislabeled events) |
 | `optimizer.analysis.class_swap` | `(camera, label)` whose events are likely misclassifications of a different class — feeds `suspect_event_ids` to `model_limit` to harden it |
 | `optimizer.analysis.shape_mismatch` | person events whose box geometry is animal-shaped (low + short) + below-confident score |
+| `optimizer.analysis.object_identity` | per-camera inventory of base labels and upstream sub-labels; never infers an identity from imagery |
+| `optimizer.analysis.service_schedule` | conservative 56-day recurring-window learner for explicitly identified garbage, recycling, mail, and package visits |
 | `optimizer.claude_layer` | structured-summary → Haiku → JSON recommendations + cost log |
 | `optimizer.scheduler` | run loop with Kometa-window backoff and interval config |
 | `optimizer.run_once` | one-shot analysis cycle (manual or cron) |
@@ -139,6 +141,7 @@ CREATE INDEX idx_recs_run ON recommendations(run_id);
 - Default interval: `OPTIMIZER_INTERVAL_SECONDS=86400` (nightly).
 - **Kometa-window backoff:** the scheduler checks the current hour and skips any cycle that would land in 03:00–07:00 local — Kometa locks the NAS and we're a good neighbor. The skip is a no-op log line; the next eligible window is the next scheduled tick after 07:00.
 - Each cycle: ingest new events since last cursor → snapshot config → run rule detectors → optionally call Claude → write `analysis_runs` + `recommendations` rows.
+- Schedule learning reads up to 56 days already retained in SQLite, collapses repeated detections on one local calendar day to one visit, and requires at least three distinct weeks plus 60% modal-weekday agreement. `OPTIMIZER_TIMEZONE` selects the IANA timezone; an invalid value falls back visibly to UTC.
 
 ## Failure modes (graceful)
 

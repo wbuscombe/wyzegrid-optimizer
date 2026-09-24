@@ -17,9 +17,11 @@ def normalize_events(rows: list[Any]) -> list[dict]:
             "id": get("id"),
             "camera": get("camera"),
             "label": get("label"),
+            "sub_label": get("sub_label"),
             "score": float(get("score") or 0.0),
             "start_time": float(get("start_time") or 0.0),
             "end_time": float(get("end_time")) if get("end_time") else None,
+            "zones": json.loads(get("zones_json") or "[]"),
             "box": [bx, by, bw, bh] if all(v is not None for v in (bx, by, bw, bh)) else None,
             "false_positive": bool(get("false_positive")),
         })

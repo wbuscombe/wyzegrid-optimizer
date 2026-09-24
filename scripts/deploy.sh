@@ -14,6 +14,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EXCLUDES=(
   --exclude='.git/'
   --exclude='venv/'
+  --exclude='.venv/'
   --exclude='__pycache__/'
   --exclude='*.pyc'
   --exclude='.pytest_cache/'
