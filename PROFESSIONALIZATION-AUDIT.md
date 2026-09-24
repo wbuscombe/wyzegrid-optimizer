@@ -22,6 +22,11 @@ built with standards at creation but had never been through a dedicated audit pa
   Repository shipping follows the normal reviewed branch/PR workflow, and
   production must not be described as updated until the deployed revision and
   dashboard health are independently verified.
+- **Deployment preservation correction:** the first established-path rollout
+  exposed that `rsync --delete` protected `.env` but not `.env` backup siblings.
+  The tracked deploy script now includes `.env.example` first, excludes `.env*`
+  afterward, excludes `.venv/`, and has a regression test for the ordering and
+  required NAS-only patterns. The live `.env` and Docker volume remained intact.
 
 ## Ecosystem
 
