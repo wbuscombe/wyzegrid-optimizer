@@ -20,6 +20,8 @@ from typing import Optional
 
 from . import db
 from .frigate_client import FrigateClient
+from .patterns import metadata as event_metadata
+from .patterns import store as pattern_store
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,7 @@ def ingest_events(
     cameras: Optional[list[str]] = None,
     max_pages: int = 50,
     page_size: int = 200,
+    capture_metadata: bool = False,
 ) -> int:
     """
     Pull new events since the latest start_time we already have.
@@ -37,6 +40,10 @@ def ingest_events(
     Returns the count of events upserted in this run. Pagination uses the
     `before` cursor walking backward from `now` until we hit our last-seen
     timestamp or run out of pages (max_pages is a safety stop).
+
+    With `capture_metadata`, allowlisted detection metadata (region, top score,
+    speed, velocity angle, path, sub-label, attributes, zones) is upserted into
+    `event_metadata` by event id. A failure there never blocks event ingestion.
     """
     last_seen = db.latest_event_start_time(conn) or 0.0
     inserted = 0
@@ -57,6 +64,11 @@ def ingest_events(
                     continue
                 db.upsert_event(conn, e)
                 inserted += 1
+                if capture_metadata:
+                    try:
+                        pattern_store.upsert_event_metadata(conn, event_metadata.extract(e))
+                    except Exception as exc:  # metadata is additive; never block ingest
+                        logger.warning("event metadata skipped: %s", type(exc).__name__)
         oldest = min(float(e["start_time"]) for e in events if e.get("start_time"))
         if oldest <= last_seen:
             # We've reached events older than what we already had — done.
@@ -66,7 +78,8 @@ def ingest_events(
             break
         # Step the cursor to one microsecond before the oldest we just got.
         cursor = oldest - 0.000001
-    logger.info("ingest_events: %d upserts across %d pages (last_seen=%.0f)", inserted, pages, last_seen)
+    logger.info("ingest_events: %d upserts across %d pages (last_seen=%.0f)",
+                inserted, pages, last_seen)
     return inserted
 
 
@@ -109,5 +122,6 @@ def snapshot_config(conn, client: FrigateClient) -> int:
             })
     with db.transaction(conn):
         db.insert_config_snapshots(conn, time.time(), rows, source_hash)
-    logger.info("snapshot_config: %d (camera,label) rows captured (hash=%s)", len(rows), source_hash[:8])
+    logger.info("snapshot_config: %d (camera,label) rows captured (hash=%s)",
+                len(rows), source_hash[:8])
     return len(rows)

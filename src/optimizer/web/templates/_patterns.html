@@ -1,0 +1,63 @@
+{# Recurring visit patterns (read-only). Copy comes from optimizer.patterns.presentation. #}
+<section id="recurring-patterns">
+  <h2>Recurring visit patterns</h2>
+  <p class="pattern-header">
+    {{ pattern_copy.estimate_header }}
+    {{ pattern_copy.disclaimer }}
+  </p>
+  <p><small>Method and limitations: <code>{{ pattern_copy.limitations_doc }}</code>.</small></p>
+  {% if not patterns.enabled %}
+    <p>Recurring-pattern analysis is turned off (<code>OPTIMIZER_PATTERNS_ENABLED=0</code>).</p>
+  {% elif patterns.status in ("not_initialized", "no_run") %}
+    <p>Recurring patterns will appear after the next analysis cycle.</p>
+  {% else %}
+    {% if patterns.status == "error" %}
+      <p><strong>The latest pattern stage recorded an error ({{ patterns.message }}).</strong>
+      Rows below come from the last successful pattern run, if any.</p>
+    {% endif %}
+    {% if patterns.rows %}
+    <p>
+      {{ patterns.rows|length }} surfaced patterns
+      {% if patterns.window %}for {{ patterns.window.first_date }} to {{ patterns.window.last_date }}{% endif %}.
+      {% if patterns.hidden_pass_through %}{{ patterns.hidden_pass_through }} pass-through patterns are hidden
+      (API: <code>include_pass_through=1</code>).{% endif %}
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Pattern</th><th>Where / what</th><th>Window (p10 to p90, median)</th>
+          <th>Cadence</th><th>Periodicity</th><th>Weekdays</th><th>Parity</th>
+          <th>Support k/n</th><th>Hit rate</th><th>Lift (time / weekday)</th><th>q</th>
+          <th>Confidence</th><th>Basis mix</th><th>Descriptors</th><th>Recent</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in patterns.rows %}
+        <tr>
+          <td>{% if p.identity %}{{ p.identity }}{% else %}{{ pattern_copy.unidentified }}{% endif %}</td>
+          <td>{{ p.site }} / {{ p.label_group }} / {{ p.behavior }}</td>
+          <td>{{ p.window.p10 }} to {{ p.window.p90 }} ({{ p.window.median }})</td>
+          <td>{{ p.estimated_cadence }}</td>
+          <td>{% if p.periodicity %}parity test: {{ p.periodicity }}{% else %}per weekday{% endif %}</td>
+          <td>{{ p.weekday_names|join(", ") }}</td>
+          <td>{% if p.parity == 0 %}A{% elif p.parity == 1 %}B{% else %}-{% endif %}</td>
+          <td>{{ p.support.k }} / {{ p.support.n }}</td>
+          <td>{{ "%.0f%%"|format(p.hit_rate * 100) }}</td>
+          <td>{{ p.lift_t }} / {{ p.lift_w if p.lift_w is not none else "unknown" }}</td>
+          <td>{{ "%.2g"|format(p.q) }}</td>
+          <td>{{ p.confidence }}</td>
+          <td>path {{ p.basis_mix.path }}, box {{ p.basis_mix.box }}, dwell {{ p.basis_mix.dwell_only }}</td>
+          <td>
+            dwell {{ p.descriptors.dwell_median_s }} s;
+            entry {{ p.descriptors.entry_side or "-" }}, exit {{ p.descriptors.exit_side or "-" }}
+          </td>
+          <td>{{ "yes" if p.recent else "no" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p>No recurring patterns surfaced in the latest successful pattern run.</p>
+    {% endif %}
+  {% endif %}
+</section>

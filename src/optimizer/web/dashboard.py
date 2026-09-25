@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template
 
 from .. import config as cfg_module
 from .. import db as dbmod
+from ..patterns import presentation
+from . import patterns as pattern_views
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def create_app() -> Flask:
                 "findings": findings,
                 "recommendations": recs,
                 "config_snapshot": {f"{cam}::{label}": v for (cam, label), v in
-                                     sorted(phantom.phantom_config_map().items())},
+                                    sorted(phantom.phantom_config_map().items())},
                 "history": history,
             }
         # Real mode — open DB
@@ -87,11 +88,14 @@ def create_app() -> Flask:
 
     @app.route("/")
     def index():
-        return render_template("index.html", data=latest_run_view(), phantom=cfg.phantom_mode)
+        return render_template("index.html", data=latest_run_view(), phantom=cfg.phantom_mode,
+                               patterns=pattern_views.dashboard_view(cfg),
+                               pattern_copy=presentation.COPY)
 
     @app.route("/recommendations")
     def recommendations_view():
-        return render_template("recommendations.html", data=latest_run_view(), phantom=cfg.phantom_mode)
+        return render_template("recommendations.html", data=latest_run_view(),
+                               phantom=cfg.phantom_mode)
 
     @app.route("/trends")
     def trends_view():
@@ -108,6 +112,9 @@ def create_app() -> Flask:
     @app.route("/api/health")
     def health():
         return jsonify({"ok": True, "phantom": cfg.phantom_mode})
+
+    # Recurring-visit patterns: GET-only routes under /api/patterns.
+    pattern_views.register(app, cfg)
 
     return app
 

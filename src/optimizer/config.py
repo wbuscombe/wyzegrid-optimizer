@@ -6,9 +6,13 @@ and PHANTOM_MODE=1 boots without any external dependency.
 """
 from __future__ import annotations
 
+import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Mapping
+
+logger = logging.getLogger(__name__)
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -21,6 +25,30 @@ def _env_int(name: str, default: int) -> int:
         return int(os.environ.get(name, "").strip() or default)
     except ValueError:
         return default
+
+
+def _env_enabled(name: str, default: bool = True) -> bool:
+    """Default-on switch: only an explicit 0/false/no/off turns it off."""
+    v = os.environ.get(name, "").strip().lower()
+    if v in ("0", "false", "no", "off"):
+        return False
+    if v in ("1", "true", "yes", "on"):
+        return True
+    return default
+
+
+def _env_pairs(name: str) -> dict[str, str]:
+    """`key:value,key:value` -> dict. Keys are kept exact (case-sensitive).
+    A malformed pair is skipped with a warning naming the variable only."""
+    out: dict[str, str] = {}
+    raw = os.environ.get(name, "").strip()
+    for item in raw.split(",") if raw else []:
+        key, sep, value = item.partition(":")
+        if not sep or not key.strip() or not value.strip():
+            logger.warning("%s: skipped a malformed key:value pair", name)
+            continue
+        out[key.strip()] = value.strip()
+    return out
 
 
 def _env_list(name: str) -> list[str]:
@@ -69,6 +97,11 @@ class Config:
     data_dir: Path
     db_path: Path
 
+    # Recurring-visit patterns (defaults keep every pattern unidentified)
+    patterns_enabled: bool = True
+    pattern_identity_label_map: Mapping[str, str] = field(default_factory=dict)
+    pattern_site_groups: Mapping[str, str] = field(default_factory=dict)
+
     @property
     def claude_enabled(self) -> bool:
         """Claude layer is opt-in via API key presence — phantom forces off."""
@@ -98,4 +131,7 @@ def load() -> Config:
         dashboard_port=_env_int("DASHBOARD_PORT", 5004),
         data_dir=data_dir,
         db_path=Path(os.environ.get("OPTIMIZER_DB_PATH", data_dir / "optimizer.db")),
+        patterns_enabled=_env_enabled("OPTIMIZER_PATTERNS_ENABLED"),
+        pattern_identity_label_map=_env_pairs("OPTIMIZER_PATTERN_IDENTITY_LABEL_MAP"),
+        pattern_site_groups=_env_pairs("OPTIMIZER_PATTERN_SITE_GROUPS"),
     )

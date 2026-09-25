@@ -27,6 +27,16 @@ This service has zero write paths to Frigate config. The Frigate HTTP client (`o
 
 `PHANTOM_MODE=1` boots the dashboard with synthetic data, no `.env` required, no Frigate connection attempted, no Anthropic API call made. This is verified at startup: in phantom mode, the `frigate_client` and `claude_layer` modules are not imported.
 
+## Recurring-pattern data
+
+- **Household-routine data.** A recurring visit pattern (when a vehicle or person tends to arrive, and on which weekdays) describes the household's routine. Treat pattern output, the pattern tables, and database copies as private operational material.
+- **Dashboard exposure.** Any dashboard or API that serves patterns must stay LAN-only or sit behind access control. Before deploying, confirm that no reverse proxy, tunnel, or port forward publishes the dashboard port.
+- **Read-only surface.** The pattern routes are GET only (other verbs return 405) and open SQLite read-only, so a request cannot write.
+- **Synthetic fixtures only.** Tests, fixtures, docs, and commit messages use the synthetic generator (synthetic camera names, 2031 dates). No production window, weekday, time, schedule, or count is ever committed.
+- **No media, ever.** The pattern code never fetches, decodes, stores, renders, or links a camera image or video, and never calls a Frigate media endpoint. Metadata extraction is an allowlist that excludes image-bearing fields, and a test scans every pattern response for media keys and values.
+- **No identity inference and no LLM.** Identity comes only from explicit upstream labels through a map that ships empty. The pattern code never calls the Claude layer.
+- **Estimates, not rates.** Cadence labels are estimates. The dense-background limitation is documented from a synthetic control only; no committed text presents a synthetic count as a measured rate, and a test enforces that.
+
 ## Logging
 
 - No event payloads are logged at INFO level (they may contain camera-related metadata Will treats as private).

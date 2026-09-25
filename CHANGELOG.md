@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-25
+
+### Added: Opaque recurring-visit patterns, with cadence shipped as an estimate
+- Persist allowlisted detection metadata (region, top score, speed, velocity angle, path, sub-label, attributes, zones) in a new `event_metadata` table, upserted by event id. Image-bearing fields are excluded, and a metadata failure never blocks event ingestion.
+- Collapse tracks into visits (short gaps and stationary re-trigger links) and classify each visit as `brief_stop`, `long_stay`, or `pass_through`.
+- Discover time-locked windows that beat their own local base rate (exact binomial tails, Benjamini-Hochberg at `FDR_Q` 0.05) and estimate their cadence with G-PRIME-R: a same-clock-time background taken as the median over the other weekdays, a Fisher exact parity test, and a weekly label that needs evidence on both week parities.
+- Identity gate: every pattern is unidentified by default ("Unidentified recurring pattern - no service identity assigned"). An identity comes only from explicit upstream labels through `OPTIMIZER_PATTERN_IDENTITY_LABEL_MAP`, which ships empty.
+- A failure-isolated run stage after the existing analysis, append-only `pattern_runs` and `pattern_results` tables (additive schema only), and the kill switch `OPTIMIZER_PATTERNS_ENABLED`.
+- Read-only API: `GET /api/patterns`, `/api/patterns/<pattern_key>`, `/api/patterns/visits`, and `/api/patterns/status`. Other verbs return 405, and SQLite is opened read-only. Every pattern carries `cadence_is_estimate: true` and a `limitations` object that names the dense-background case and points to ARCHITECTURE.
+- Dashboard section: cadence renders as "Estimated cadence: <label>" under a header stating that cadences are statistical estimates from detection metadata, that on busy scenes an every-other-week pattern can occasionally read as weekly or fail to surface, and that patterns are not identifications. PHANTOM_MODE renders it from the synthetic generator only.
+
+### Changed: Documentation and lint hygiene for the pattern release
+- README, ARCHITECTURE, SECURITY-PRACTICES, and `.env.example` document the method, the synthetic controls, the limitations (synthetic evidence only), privacy, the kill switch, and deployment notes.
+- Wrap two long log lines in `ingest.py`, and remove an unused import and fix two style findings in `web/dashboard.py`, so the pre-commit flake8 hook passes on the edited files. No behavior change.
+
+### Tests: Recurring patterns
+- Synthetic-only tests for visits (V-1..V-7), persistence (P-1..P-7), statistics (S-1, S-2, S-11), the multi-seed positive control (S-3M), null calibration (S-4), S-5..S-8, cadence controls (S-9a as a defect tripwire, S-9b, S-10, S-12a, S-12c), the identity gate (I-1..I-6), run isolation and append-only results (I-7..I-9), the no-LLM check (I-10), the read-only API and dashboard (R-1..R-7), estimate semantics, and a static check that no committed text presents the synthetic dense-background count as a measured rate.
+
 ### Added — Object identity and household-service schedule analysis (2026-09-24)
 - Preserve Frigate `sub_label` and zones through event normalization instead of dropping them after ingestion.
 - Add a read-only object-identity inventory showing base labels, upstream sub-labels, per-camera counts, and unresolved generic vehicle events.

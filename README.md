@@ -75,6 +75,8 @@ docker compose up -d --build
 # Dashboard: http://192.168.50.x:5004
 ```
 
+`scripts/deploy.sh` rsyncs its own directory to the NAS, so run it from a clean checkout or an export of a release tag: untracked local files would travel with it. Back up the database before a release that adds tables; see [Deployment notes for recurring patterns](ARCHITECTURE.md#deployment-notes-for-recurring-patterns).
+
 ## Tests
 
 ```bash
@@ -112,6 +114,27 @@ Generic `car` or `truck` detections are never guessed into a service category.
 Set `OPTIMIZER_TIMEZONE` to the household's IANA timezone to render local times.
 
 Claude reads the structured findings and produces plain-language recommendations tagged `safe` / `risky` / `model-limit`.
+
+## Recurring visit patterns
+
+Each cycle also looks for opaque recurring visits: time-locked windows in which vehicles or people stop, or stay, on a camera more often than that camera's own base rate predicts. Tracks are merged into visits and classified as `brief_stop`, `long_stay`, or `pass_through`. Candidate windows are tested with exact binomial tails under Benjamini-Hochberg false-discovery control, and each surfaced window gets a cadence estimate: `weekly`, `biweekly`, `weekday_set`, or `recurring`.
+
+- **Cadences are estimates.** They are statistical estimates from detection metadata, not measurements. On busy scenes an every-other-week pattern can occasionally read as weekly or fail to surface. Every pattern in the API carries `"cadence_is_estimate": true` and a `limitations` object pointing to [Cadence estimates and limitations](ARCHITECTURE.md#cadence-estimates-and-limitations); the dashboard renders "Estimated cadence: <label>".
+- **Unidentified by default.** Patterns say when and how activity recurs, never what it is. Every row reads "Unidentified recurring pattern - no service identity assigned" unless explicit upstream labels (Frigate `sub_label` or attributes) map to an identity through `OPTIMIZER_PATTERN_IDENTITY_LABEL_MAP`, which ships empty. Nothing is inferred from base label, time, cadence, geometry, speed, or any LLM.
+- **No media.** Only allowlisted detection metadata is stored. No image or video is fetched, stored, or linked, and no response carries a media field.
+- **Private output.** A recurring pattern is household-routine data. Keep the dashboard LAN-only or behind access control.
+- **Kill switch.** `OPTIMIZER_PATTERNS_ENABLED=0` skips the stage; the API then reports `disabled`.
+
+Read-only endpoints (GET only; POST, PUT, PATCH, and DELETE return 405):
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/patterns` | Surfaced patterns from the latest successful pattern run. Filters: `camera`, `label_group`, `behavior`, `min_confidence` (`moderate` or `strong`), `include_pass_through=1` (pass-through patterns are hidden otherwise). |
+| `GET /api/patterns/<pattern_key>` | One pattern from the latest run that holds it, with its weekly hit grid and cadence-test fields. |
+| `GET /api/patterns/visits` | The aggregate visit summary of the latest successful pattern run. |
+| `GET /api/patterns/status` | Whether the stage is enabled, and the latest pattern run's status and sanitized message. |
+
+Each pattern includes its window, cadence, periodicity, weekdays, parity, support k/n, hit rate, lifts, q, confidence, behavior, basis mix, descriptors, recent flag, `identity`, `identity_reason`, `cadence_is_estimate`, and `limitations`. The method, the synthetic controls, and the limitations are in [ARCHITECTURE.md](ARCHITECTURE.md#recurring-visit-patterns).
 
 ## What it will NOT do
 

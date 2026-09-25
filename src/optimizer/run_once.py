@@ -15,6 +15,7 @@ from . import db, ingest, ntfy, zma
 from .analysis import normalize_config_rows, normalize_events, run_all
 from .claude_layer import interpret
 from .frigate_client import FrigateClient
+from .patterns import stage as pattern_stage
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,8 @@ def run_cycle() -> dict:
         db.init_db(cfg.db_path)
         client = FrigateClient(cfg.frigate_url)
         conn = db.connect(cfg.db_path)
+        # Additive pattern schema; never raises (False = metadata capture skipped).
+        metadata_ready = pattern_stage.prepare(conn)
 
         started = time.time()
         window_start = (
@@ -46,6 +49,7 @@ def run_cycle() -> dict:
         ingested = ingest.ingest_events(
             conn, client,
             cameras=cfg.cameras_filter or None,
+            capture_metadata=metadata_ready,
         )
         snapshotted = ingest.snapshot_config(conn, client)
 
@@ -81,6 +85,12 @@ def run_cycle() -> dict:
                 notes=result.error,
             )
             db.insert_recommendations(conn, run_id, result.recommendations)
+
+        # Recurring-visit patterns run after the existing analysis is recorded.
+        # The stage is failure-isolated and never raises, so it cannot change
+        # this run's status, findings, or recommendations.
+        if metadata_ready:
+            pattern_stage.run_from_config(conn, run_id, cfg)
 
         zma.post_status(cfg.zma_webhook_url, "run-complete", {
             "run_id": run_id,
