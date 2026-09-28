@@ -25,6 +25,7 @@
 
 <section>
   <h2>Per-camera profile</h2>
+  <div class="table-scroll" role="region" aria-label="Per-camera profile table" tabindex="0">
   <table>
     <thead><tr><th>Camera</th><th>Total events</th><th>Tracked labels</th><th>Never-seen labels (window)</th></tr></thead>
     <tbody>
@@ -40,6 +41,7 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
 </section>
 
 <section>
@@ -75,6 +77,9 @@
   {% endif %}
 </section>
 
+{# Patterns sit apart from the service windows, so no pattern reads as a service. #}
+{% include "_patterns.html" %}
+
 {% set identities = data.findings.get("object_identity") %}
 <section>
   <h2>Detected object identities</h2>
@@ -86,6 +91,7 @@
       <strong>{{ identities.unresolved_vehicle_events }}</strong>.
     </p>
     {% if identities.rows %}
+    <div class="table-scroll" role="region" aria-label="Detected object identities table" tabindex="0">
     <table>
       <thead><tr><th>Camera</th><th>Base label</th><th>Sub-label</th><th>Granularity</th><th>Count</th></tr></thead>
       <tbody>
@@ -100,6 +106,7 @@
       {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
       <p>No event identities are available for this window.</p>
     {% endif %}
@@ -109,8 +116,8 @@
 </section>
 
 {% set service = data.findings.get("service_schedule") %}
-<section>
-  <h2>Learned household-service windows</h2>
+<section id="service-windows">
+  <h2>Household-service windows (explicit labels only)</h2>
   {% if service %}
     <p>
       Read-only {{ service.timezone }} analysis of {{ service.events_examined }} events.
@@ -118,6 +125,7 @@
       {{ service.generic_vehicle_events }} generic vehicle events were left unclassified.
     </p>
     {% if service.timezone_warning %}<p><strong>{{ service.timezone_warning }}</strong></p>{% endif %}
+    <div class="table-scroll" role="region" aria-label="Household-service windows table" tabindex="0">
     <table>
       <thead><tr><th>Service</th><th>Status</th><th>Typical window</th><th>Visits / weeks</th><th>Confidence</th><th>Evidence</th></tr></thead>
       <tbody>
@@ -131,19 +139,18 @@
             {% else %}—{% endif %}
           </td>
           <td>{{ row.visits }} / {{ row.distinct_weeks }}</td>
-          <td>{{ "%.0f%%"|format(row.confidence * 100) }}</td>
+          <td>{% if row.status == "learned" %}{{ "%.0f%%"|format(row.confidence * 100) }}{% else %}not learned{% endif %}</td>
           <td>{{ row.evidence }}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
+    </div>
     <p><small>A schedule is learned only from explicit labels or sub-labels; generic cars and trucks are never guessed into a service category.</small></p>
   {% else %}
     <p>Service-window learning will appear after the next analysis cycle.</p>
   {% endif %}
 </section>
-
-{% include "_patterns.html" %}
 {% else %}
 <p>No analysis run yet. Trigger one with <code>python -m optimizer.run_once</code>.</p>
 {% endif %}

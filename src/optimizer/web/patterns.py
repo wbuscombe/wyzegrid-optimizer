@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
@@ -28,7 +29,8 @@ from urllib.parse import quote
 
 from flask import Flask, jsonify, request
 
-from ..patterns import presentation, store
+from ..patterns import localtime, presentation, store
+from ..patterns.localtime import ClockLabelFn
 from ..patterns.settings import BEHAVIORS, DEFAULT_BEHAVIORS
 
 CONFIDENCE_LEVELS = ("moderate", "strong")
@@ -122,13 +124,27 @@ def select(patterns: list[dict], *, camera: Optional[str] = None,
     ]
 
 
-def dashboard_view(cfg) -> dict:
-    """The dashboard section's data: default-visible rows with estimate copy."""
+def _clock(cfg) -> str:
+    """The clock the pattern times are in, named at runtime: the process-local
+    clock the scheduler's stage uses, or the synthetic zone in PHANTOM_MODE."""
+    if cfg.phantom_mode:
+        from ..patterns import synthetic
+        return localtime.zoneinfo_clock_label(synthetic.TZ_NAME)(synthetic.span_now())
+    return localtime.process_clock_label(time.time())
+
+
+def dashboard_view(cfg, clock: Optional[ClockLabelFn] = None) -> dict:
+    """The dashboard section's data: default-visible rows with estimate copy, the
+    rows in plain words, and the name of the clock their times are in. `clock`
+    injects the clock source (tests); by default it is read at runtime."""
     snap = read_state(cfg)
     rows = []
     for p in select(snap["patterns"]):
         row = presentation.present(p)
         row["estimated_cadence"] = presentation.estimated_cadence(p["cadence"])
+        row["plain_cadence"] = presentation.plain_cadence(p["cadence"])
+        row["plain_confidence"] = presentation.plain_confidence(p["confidence"])
+        row["seen"] = presentation.seen_summary(p)
         rows.append(row)
     latest = snap["latest"] or {}
     return {
@@ -137,6 +153,7 @@ def dashboard_view(cfg) -> dict:
         "message": latest.get("message"),
         "run_id": snap["ok_run_id"],
         "window": snap["window"],
+        "clock": clock(time.time()) if clock else _clock(cfg),
         "rows": rows,
         "hidden_pass_through": sum(1 for p in snap["patterns"]
                                    if p["behavior"] not in DEFAULT_BEHAVIORS),

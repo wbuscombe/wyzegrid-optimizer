@@ -23,6 +23,7 @@ body {
 
 header.topbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
@@ -32,6 +33,7 @@ header.topbar {
 header.topbar nav {
   margin-left: auto;
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 header.topbar a {
@@ -94,7 +96,27 @@ table tr:last-child td { border-bottom: none; }
 table tr.highlight { background: rgba(59, 130, 246, 0.06); }
 td.never-seen { color: var(--warn); }
 
-code { background: var(--surface-2); padding: 1px 5px; border-radius: 3px; }
+/* Wide tables scroll inside their own container, so the page never scrolls sideways. */
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Recurring patterns: plain words in the row, the statistics one click away. */
+table tr.pattern-stats td { padding-top: 0; }
+table tr.pattern-stats summary { cursor: pointer; color: var(--text-muted); }
+table tr.pattern-stats dl { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 8px 0 4px; }
+table tr.pattern-stats dt { color: var(--text-muted); }
+table tr.pattern-stats dd { margin: 0; }
+
+code {
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+  overflow-wrap: anywhere;
+}
 
 .risk-badge {
   display: inline-block;
@@ -116,4 +138,12 @@ footer {
   text-align: center;
   color: var(--text-muted);
   border-top: 1px solid var(--border);
+}
+
+/* Phone width. */
+@media (max-width: 600px) {
+  header.topbar { padding: 10px 12px; }
+  header.topbar nav { margin-left: 0; }
+  main { margin: 16px auto; padding: 0 12px; }
+  footer { padding: 16px 12px; }
 }

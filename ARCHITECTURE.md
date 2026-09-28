@@ -243,7 +243,7 @@ Each revision replaced a specific defect, found by a synthetic control:
 
 ### Identity gate
 
-Every pattern is unidentified by default and reads "Unidentified recurring pattern - no service identity assigned". An identity comes only from explicit upstream labels (a Frigate sub_label or attribute string) found in `OPTIMIZER_PATTERN_IDENTITY_LABEL_MAP`, which ships empty. It is assigned only when at least 3 member visits and at least 60% of members carry a label mapped to the same identity, and no other identity exceeds 20% of members. Otherwise identity is null with a reason: no explicit upstream label, insufficient label support, or conflicting labels. Identity is never inferred from base label, time, weekday, cadence, dwell, geometry, speed, or any model output, and no pattern code calls an LLM. The household-service schedule learner is unchanged and still needs explicit service labels.
+Every pattern is unidentified by default and reads "Unidentified recurring pattern (no identity)". An identity comes only from explicit upstream labels (a Frigate sub_label or attribute string) found in `OPTIMIZER_PATTERN_IDENTITY_LABEL_MAP`, which ships empty. It is assigned only when at least 3 member visits and at least 60% of members carry a label mapped to the same identity, and no other identity exceeds 20% of members. Otherwise identity is null with a reason: no explicit upstream label, insufficient label support, or conflicting labels. Identity is never inferred from base label, time, weekday, cadence, dwell, geometry, speed, or any model output, and no pattern code calls an LLM. The household-service schedule learner is unchanged and still needs explicit service labels.
 
 ### Persistence, failure isolation, and the kill switch
 
@@ -272,6 +272,8 @@ All tests use the deterministic synthetic generator (synthetic cameras, 2031 dat
 
 Cadence labels (`weekly`, `biweekly`, `weekday_set`, `recurring`) are statistical estimates from detection metadata. They are not measurements, and they are not identifications. Every pattern in the API carries `cadence_is_estimate: true` and a `limitations` object that names the dense-background case and points to this section. The dashboard renders cadence as "Estimated cadence: <label>". No field anywhere reports an error rate.
 
+The dashboard also puts each row in plain words, mapped one phrase per value from fields that already exist: the cadence label (for example "About every other week"), the confidence tier ("Strong evidence the timing repeats" or "Moderate evidence the timing repeats", with a one-line legend saying the tier describes timing only), and support k/n ("Seen in k of n covered weeks"). No new statistic is computed. The statistics themselves sit in a collapsed details row under each pattern, and the other limitations below render on the page as text, without numbers. The pattern section sits apart from the household-service windows, and no pattern string names a service.
+
 **Dense background.** On busy scenes an every-other-week pattern can occasionally read as weekly or fail to surface. The evidence is synthetic. Control S-9a plants a biweekly vehicle stop (Wednesday 13:10-13:30, active on parity A) inside a synthetic street background of about three random stops a day, spread uniformly from 07:00 to 19:00, over the fixed seeds 3101-3120.
 
 | S-9a outcome (synthetic scenario, fixed seeds 3101-3120) | Seeds |
@@ -292,7 +294,7 @@ Other limitations:
 - Overlapping objects in one stratum merge into one visit, one activity episode.
 - The daily grid ends at local midnight, so activity that recurs across midnight is tested as two windows on adjacent weekdays.
 - History captured before this feature has no stored path, so it classifies on box or dwell only until paths accumulate.
-- Windows follow the scheduler's process-local clock. Set the container's `TZ` to see household-local windows.
+- Windows follow the scheduler's process-local clock. Set the container's `TZ` to see household-local windows. The dashboard names that clock beside every window (for example "UTC"), read at runtime from the same process-local source, so no zone is written into code or configuration.
 
 ## Deployment notes for recurring patterns
 

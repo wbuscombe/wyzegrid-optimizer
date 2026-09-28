@@ -33,7 +33,7 @@ TABLES = ("events", "config_snapshots", "analysis_runs", "recommendations", "eve
 ESTIMATE_HEADER = ("Cadences are statistical estimates from detection metadata. On busy "
                    "scenes an every-other-week pattern can occasionally read as weekly or "
                    "fail to surface.")
-UNIDENTIFIED = "Unidentified recurring pattern - no service identity assigned"
+UNIDENTIFIED = "Unidentified recurring pattern (no identity)"
 NOT_IDENTIFICATIONS = ("Patterns are statistical regularities in detection metadata, "
                        "not identifications.")
 
@@ -278,9 +278,12 @@ def test_r6_e3_dashboard_renders_estimate_copy_unidentified_rows_and_service_sch
         expected = sum(1 for p in patterns if p["cadence"] == cadence)
         assert html.count(f"<td>Estimated cadence: {cadence}</td>") == expected
     assert not re.search(r"<td>\s*(weekly|biweekly|weekday_set|recurring)\s*</td>", html)
-    # Existing service schedules still render, and still say insufficient-evidence.
-    assert "Learned household-service windows" in html
+    # Existing service schedules still render, and still say insufficient-evidence,
+    # under a heading that no longer claims learning (WYZE-022 G7).
+    assert "Household-service windows (explicit labels only)" in html
+    assert "Learned household-service windows" not in html
     assert html.count("<td>insufficient-evidence</td>") == 4
+    assert html.count("<td>not learned</td>") == 4
 
 
 # ---- R-7 ------------------------------------------------------------------------

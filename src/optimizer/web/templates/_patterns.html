@@ -5,7 +5,6 @@
     {{ pattern_copy.estimate_header }}
     {{ pattern_copy.disclaimer }}
   </p>
-  <p><small>Method and limitations: <code>{{ pattern_copy.limitations_doc }}</code>.</small></p>
   {% if not patterns.enabled %}
     <p>Recurring-pattern analysis is turned off (<code>OPTIMIZER_PATTERNS_ENABLED=0</code>).</p>
   {% elif patterns.status in ("not_initialized", "no_run") %}
@@ -22,13 +21,15 @@
       {% if patterns.hidden_pass_through %}{{ patterns.hidden_pass_through }} pass-through patterns are hidden
       (API: <code>include_pass_through=1</code>).{% endif %}
     </p>
+    <p class="pattern-clock">Pattern times are shown in {{ patterns.clock }}, the clock the analysis runs on.</p>
+    <p class="pattern-legend"><small>{{ pattern_copy.certainty_legend }}</small></p>
+    <div class="table-scroll" role="region" aria-label="Recurring visit patterns table" tabindex="0">
     <table>
       <thead>
         <tr>
-          <th>Pattern</th><th>Where / what</th><th>Window (p10 to p90, median)</th>
-          <th>Cadence</th><th>Periodicity</th><th>Weekdays</th><th>Parity</th>
-          <th>Support k/n</th><th>Hit rate</th><th>Lift (time / weekday)</th><th>q</th>
-          <th>Confidence</th><th>Basis mix</th><th>Descriptors</th><th>Recent</th>
+          <th>Pattern</th><th>Where / what</th><th>Weekdays</th>
+          <th>Window, {{ patterns.clock }} (p10 to p90, median)</th>
+          <th>Cadence</th><th>In plain words</th><th>How sure</th><th>Recent</th>
         </tr>
       </thead>
       <tbody>
@@ -36,28 +37,43 @@
         <tr>
           <td>{% if p.identity %}{{ p.identity }}{% else %}{{ pattern_copy.unidentified }}{% endif %}</td>
           <td>{{ p.site }} / {{ p.label_group }} / {{ p.behavior }}</td>
-          <td>{{ p.window.p10 }} to {{ p.window.p90 }} ({{ p.window.median }})</td>
-          <td>{{ p.estimated_cadence }}</td>
-          <td>{% if p.periodicity %}parity test: {{ p.periodicity }}{% else %}per weekday{% endif %}</td>
           <td>{{ p.weekday_names|join(", ") }}</td>
-          <td>{% if p.parity == 0 %}A{% elif p.parity == 1 %}B{% else %}-{% endif %}</td>
-          <td>{{ p.support.k }} / {{ p.support.n }}</td>
-          <td>{{ "%.0f%%"|format(p.hit_rate * 100) }}</td>
-          <td>{{ p.lift_t }} / {{ p.lift_w if p.lift_w is not none else "unknown" }}</td>
-          <td>{{ "%.2g"|format(p.q) }}</td>
-          <td>{{ p.confidence }}</td>
-          <td>path {{ p.basis_mix.path }}, box {{ p.basis_mix.box }}, dwell {{ p.basis_mix.dwell_only }}</td>
-          <td>
-            dwell {{ p.descriptors.dwell_median_s }} s;
-            entry {{ p.descriptors.entry_side or "-" }}, exit {{ p.descriptors.exit_side or "-" }}
-          </td>
+          <td>{{ p.window.p10 }} to {{ p.window.p90 }} ({{ p.window.median }}) {{ patterns.clock }}</td>
+          <td>{{ p.estimated_cadence }}</td>
+          <td>{{ p.plain_cadence }} (estimate). {{ p.seen }}.</td>
+          <td>{{ p.plain_confidence }}</td>
           <td>{{ "yes" if p.recent else "no" }}</td>
+        </tr>
+        <tr class="pattern-stats">
+          <td colspan="8">
+            <details>
+              <summary>Statistics</summary>
+              <dl>
+                <dt>Periodicity</dt><dd>{% if p.periodicity %}parity test: {{ p.periodicity }}{% else %}per weekday{% endif %}</dd>
+                <dt>Parity</dt><dd>{% if p.parity == 0 %}A{% elif p.parity == 1 %}B{% else %}-{% endif %}</dd>
+                <dt>Support k/n</dt><dd>{{ p.support.k }} / {{ p.support.n }}</dd>
+                <dt>Hit rate</dt><dd>{{ "%.0f%%"|format(p.hit_rate * 100) }}</dd>
+                <dt>Lift (time / weekday)</dt><dd>{{ p.lift_t }} / {{ p.lift_w if p.lift_w is not none else "unknown" }}</dd>
+                <dt>q</dt><dd>{{ "%.2g"|format(p.q) }}</dd>
+                <dt>Confidence tier</dt><dd>{{ p.confidence }}</dd>
+                <dt>Basis mix</dt><dd>path {{ p.basis_mix.path }}, box {{ p.basis_mix.box }}, dwell {{ p.basis_mix.dwell_only }}</dd>
+                <dt>Descriptors</dt><dd>dwell {{ p.descriptors.dwell_median_s }} s; entry {{ p.descriptors.entry_side or "-" }}, exit {{ p.descriptors.exit_side or "-" }}</dd>
+              </dl>
+            </details>
+          </td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
       <p>No recurring patterns surfaced in the latest successful pattern run.</p>
     {% endif %}
   {% endif %}
+  <h3>Other limitations</h3>
+  <ul class="pattern-limitations">
+    {% for line in pattern_copy.other_limitations %}<li>{{ line }}</li>
+    {% endfor %}
+  </ul>
+  <p><small>Full method and synthetic evidence: <code>{{ pattern_copy.limitations_doc }}</code> in the repository.</small></p>
 </section>

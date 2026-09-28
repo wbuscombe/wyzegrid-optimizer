@@ -5,6 +5,7 @@
 <p class="note">Phase 1: nothing is applied. Review and accept / reject manually by editing Frigate config yourself.</p>
 
 {% if data.recommendations %}
+<div class="table-scroll" role="region" aria-label="Recommendations table" tabindex="0">
 <table class="recs">
   <thead>
     <tr>
@@ -35,6 +36,7 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% else %}
 <p>No recommendations in the latest run.</p>
 {% endif %}

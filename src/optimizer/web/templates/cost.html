@@ -27,6 +27,7 @@
   </div>
 </section>
 
+<div class="table-scroll" role="region" aria-label="Run history table" tabindex="0">
 <table>
   <thead><tr><th>Run</th><th>Started</th><th>Status</th><th>Claude used?</th><th>Input tok</th><th>Output tok</th><th>Cost USD</th><th>Notes</th></tr></thead>
   <tbody>
@@ -44,6 +45,7 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% else %}
 <p>No run history yet.</p>
 {% endif %}

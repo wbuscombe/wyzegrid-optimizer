@@ -5,6 +5,7 @@
 
 {% set dists = data.findings.score_distribution.distributions %}
 {% if dists %}
+<div class="table-scroll" role="region" aria-label="Score distributions table" tabindex="0">
 <table>
   <thead>
     <tr><th>Camera</th><th>Label</th><th>Count</th><th>Min</th><th>P10</th><th>P25</th><th>Median</th><th>Mean</th><th>P75</th><th>P90</th><th>Max</th><th>Current threshold</th></tr>
@@ -28,6 +29,7 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 
 <h2>Score-band chart</h2>
 <canvas id="scoreChart" height="120"></canvas>
@@ -56,6 +58,7 @@
 
 <h2>Threshold-proximity candidates</h2>
 {% set cands = data.findings.threshold_proximity.candidates %}
+<div class="table-scroll" role="region" aria-label="Threshold-proximity candidates table" tabindex="0">
 <table>
   <thead><tr><th>Camera</th><th>Label</th><th>Threshold</th><th>In band</th><th>Total</th><th>In-band %</th><th>Tuning candidate?</th></tr></thead>
   <tbody>
@@ -72,4 +75,5 @@
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% endblock %}

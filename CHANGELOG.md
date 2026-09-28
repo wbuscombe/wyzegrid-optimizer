@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed: Dashboard wording, certainty, clock, and phone layout (WYZE-022)
+- Non-suggestive wording (G7): the unidentified-pattern statement is now "Unidentified recurring pattern (no identity)", without the word "service"; the service section is titled "Household-service windows (explicit labels only)" and shows "not learned" instead of 0% for schedules without evidence; the pattern section no longer sits directly under the service table. The service learner, its statuses, and the empty identity map are unchanged.
+- Plain-language certainty (G9): each pattern row adds its cadence and confidence tier in plain words and "seen in k of n covered weeks", mapped from existing fields with no new statistic. A one-line legend says the tier describes timing only. The statistics move into a collapsed details row, and the documented limitations render as page text, without numbers.
+- Named clock (G8): pattern times carry the name of the clock they are in, read at runtime from the scheduler's process-local source (`patterns.localtime.process_clock_label`). No zone is written into code or configuration.
+- Phone width (G13): every table scrolls inside its own named, keyboard-focusable container, the top bar wraps, long code text breaks, and a 600 px breakpoint tightens padding.
+
+### Tests: Dashboard UX (WYZE-022)
+- `test_ux_g7_wording.py`, `test_ux_g8_clock.py`, `test_ux_g9_certainty.py`, and `test_ux_g13_layout.py`, each with a positive control; the G13 phone-width render runs only where a local Chrome is found. `test_r6_e3...` is updated for the new copy.
+
 ## [0.2.0] - 2026-09-25
 
 ### Added: Opaque recurring-visit patterns, with cadence shipped as an estimate

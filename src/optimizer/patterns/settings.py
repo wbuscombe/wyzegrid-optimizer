@@ -89,7 +89,7 @@ PATTERNS_ENABLED = True
 IDENTITY_LABEL_MAP: Mapping[str, str] = {}   # ships EMPTY: every pattern is unidentified
 SITE_GROUPS: Mapping[str, str] = {}          # empty: every camera is its own site
 
-UNIDENTIFIED_TEXT = "Unidentified recurring pattern - no service identity assigned"
+UNIDENTIFIED_TEXT = "Unidentified recurring pattern (no identity)"
 DISCLAIMER_TEXT = (
     "Patterns are statistical regularities in detection metadata, not identifications."
 )
